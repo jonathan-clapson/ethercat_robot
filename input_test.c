@@ -137,7 +137,7 @@ void input_test(char *ifname)
 	printf("got wkc of: %d\n", wkc);
 
 
-	for (int i=0; i<=3; i++) {
+	for (int i=0; i<=4; i++) {
 		ec_writestate(i);
 
 		ec_statecheck(i, EC_STATE_OPERATIONAL, EC_TIMEOUTSTATE);
@@ -150,7 +150,7 @@ void input_test(char *ifname)
 		ec_send_processdata();
 		ec_receive_processdata(EtherCAT_TIMEOUT);
 		
-/*		for (int i=0; i<4; i++) {
+/*		for (int i=0; i<=4; i++) {
 			printf("name: %s\n", ec_slave[i].name);
 			uint8 *inval = ec_slave[i].inputs;
 			uint8 *outval = ec_slave[i].outputs;		
@@ -158,20 +158,26 @@ void input_test(char *ifname)
 			printf("inpointer: %p\n", inval);
 			printf("outpointer: %p\n", outval);
 
-		}
-		for (int i=0; i<10; i++) {
+		}*/
+		/*for (int i=0; i<10; i++) {
 			printf("iomap%d: %d\n", i, IOmap[i]);
 			printf("ptr: %p\n", &(IOmap[i]));
 		}*/
+		uint8 *ptr = ec_slave[4].inputs;
+		for (int i=0; i<42; i++) {
+			printf("data%d: %u\t", i, *ptr);
+			ptr++;
+		}
+		printf("\n");
 //		printf("val: %u\n", *(ec_slave[2].inputs));
-		counter ++;
+/*		counter ++;
 		if (counter > 10000) {
 			magnet_direction = (magnet_direction == 1) ? 0 : 1;
 			counter = 0;
 			*(ec_slave[3].outputs) = (uint8) magnet_direction;
 			printf("set magnet direction to: %u\n", *(ec_slave[3].outputs) );
 		}
-		//printf("iomap: %p\n", IOmap);
+		//printf("iomap: %p\n", IOmap);*/
 		usleep(100);
 	}
 
