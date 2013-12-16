@@ -155,23 +155,26 @@ void input_test(char *ifname)
 		}
 	}
 
-	ec_readstate();
-	
+//	ec_readstate();
+	ec_slave[0].state = EC_STATE_OPERATIONAL;	
 	ec_send_processdata();
 	int wkc = ec_receive_processdata(EtherCAT_TIMEOUT);
 
-	printf("got wkc of: %d\n", wkc);
+//	printf("got wkc of: %d\n", wkc);
 
+	ec_writestate(0);
+//	printf("lowest state: %d\n", ec_readstate());
+	ec_statecheck(0, EC_STATE_OPERATIONAL, EC_TIMEOUTSTATE);
+	/*for (int i=1; i<=ec_slavecount; i++) {
+		uint8 state = ec_statecheck(i, 8, EC_TIMEOUTSTATE);
+		printf("Slave %d state: %u\n", i,state);
+	}*/
+	printf("lowest state: %d\n", ec_readstate());
 
-	for (int i=0; i<=4; i++) {
-		ec_writestate(i);
-
-		ec_statecheck(i, EC_STATE_OPERATIONAL, EC_TIMEOUTSTATE);
-		printf("Slave %d operational\n", i);
-	}
-
-#ifdef MAGNET_COUNTER
+#ifdef COUNTER
 	int counter = 0;
+#endif
+#ifdef MAGNET_COUNTER
 	int magnet_direction = 0;
 #endif
 
@@ -245,7 +248,9 @@ struct PACKED stepper_24v_t {
 		/* timer is sorted, lets go!!! */
 		ec_send_processdata();
 		ec_receive_processdata(EtherCAT_TIMEOUT);
-	
+
+
+#ifdef TEST_WAGO_SLAVE	
 		if (counter > 10000) {	
 			printf("IOmap 0x0005: %u\n", IOmap[0x0005]);
 			printf("IOmap 0x0030: %u\n", IOmap[0x0030]);
@@ -258,7 +263,13 @@ struct PACKED stepper_24v_t {
 			IOmap[WAGOBASE2+CONT0_OFFSET] = CONTSTAT0_BIT_MBX_EN;
 			IOmap[WAGOBASE3+CONT0_OFFSET] = CONTSTAT0_BIT_MBX_EN;
 		}
+#endif /* TEST_WAGO_SLAVE */
 
+/*		if (counter > 10000) {
+			printf("IOmap 0x0???: %u\n", IOmap[0x00??]);
+
+			IOmap[
+		}*/
 		/*struct stepper_24v_t stepper_state;
 		memset(&stepper_state, 0, sizeof(struct stepper_24v_t));
 		stepper_state.stat_cont0.bit.mbx_mode = 0;
@@ -329,7 +340,6 @@ struct PACKED stepper_24v_t {
 		//printf("here\n");
 		if (counter > 10000) {
 			magnet_direction = (magnet_direction == 1) ? 0 : 1;
-			counter = 0;
 			*(ec_slave[3].outputs) = (uint8) magnet_direction;
 			printf("set magnet direction to: %u\n", *(ec_slave[3].outputs) );
 			if (magnet_direction == 1)
@@ -346,8 +356,13 @@ struct PACKED stepper_24v_t {
 				printf("data%d: %u\t", i, IOmap[i]);
 #endif
 		}		
-		counter++;
 #endif /* MAGNET_COUNTER */
+#ifdef COUNTER
+		if (counter > 10000)
+			counter = 0;
+
+		counter++;
+#endif
 #ifdef STEPPER_SII	
 		uint8 nSM, iSM, tSM;
 		int outputs_bo, inputs_bo, rdl;
