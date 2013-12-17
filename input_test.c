@@ -24,11 +24,77 @@ char IOmap[4096];
 char *eth_dev = "eth0";
 uint32 cycle_time = 1000;
 
-/*typedef struct PACKED
-{
-	uint8 chan1;
-	uint8 chan2;
-} in_EK1002t;*/
+/* wago device configuration */
+const int WAGO_DEVICE_OFFSETS_MOSI[] = {0x0005, 0x0011, 0x001d};
+const int WAGO_DEVICE_OFFSETS_MISO[] = {0x0030, 0x003c, 0x0048};
+
+/* this struct is configured so that the second address is 0 for master out, 1 for master in */
+struct wago_stepper_t *wago_steppers[3][2];
+/* io structures */
+struct PACKED wago_stepper_t {
+	union {
+		uint8 value;
+		struct {
+			uint8 reserved : 5;
+			uint8 mbx_mode : 1;
+			uint8 error : 1; /* this is read only */
+			uint8 reserved2 : 1;
+		} bit;
+	} stat_cont0;
+
+	uint8 reserved;
+	
+	union {
+		struct {
+			uint8 velocity_lbyte;
+			uint8 velocity_hbyte;
+			uint8 acceleration_lbyte;
+			uint8 acceleration_hbyte;
+			uint8 position_lbyte;
+			uint8 position_mbyte;
+			uint8 position_hbyte;
+		} positioning;
+		struct {
+			uint8 opcode;
+			uint8 control;
+			uint8 mail[4];
+			uint8 reserved;
+		} mailbox;
+	} message;
+	
+	
+	uint8 stat_cont3;
+	union {
+		uint8 value;
+		struct {
+			uint8 on_target : 1;
+			uint8 busy : 1;
+			uint8 standstill : 1;
+			uint8 on_speed : 1;
+			uint8 direction : 1;
+			uint8 reference_ok : 1;
+			uint8 precalc_ack : 1;
+			uint8 error : 1;
+		} status_bits;
+
+		struct {
+			uint8 to_be_defined : 8;
+		} control_bits;
+	} stat_cont2;
+	union {
+		uint8 value;
+		struct {
+			uint8 enable : 1;
+			uint8 stop2_n : 1;
+			uint8 start : 1;
+			uint8 m_positioning : 1;
+			uint8 m_program : 1;
+			uint8 m_reference : 1;
+			uint8 m_jog : 1;
+			uint8 m_drive_by_mbx : 1;
+		} bit;
+	} stat_cont1;	
+};
 
 typedef struct PACKED
 {
@@ -112,6 +178,125 @@ void ec_sync(int64 reftime, int64 cycletime, int64 *offsettime)
 	*offsettime = -(delta/100) - (integral/20);
 }
 
+void state_machine()
+{
+#ifdef STATE_MACHINE_MAILBOX
+	enum states {
+		enable_mailbox = 0,
+		enable_mailbox_drive,
+		init2,
+		xxx
+	};
+	static states current_state = enable_mailbox;
+	switch (current_state) {
+	case init:
+		for (int i=0; i<3; i++) {
+			/* control 0 setup */
+		`	wago_steppers[i][0]->stat_cont0.bit.mbx_mode = 1;
+		}
+		current_state = enable_mailbox_drive;
+		break;
+
+	case enable_mailbox_drive:
+		/* control 1 setup */
+		wago_steppers[i][0]->stat_cont1.bit.enable = 1;
+		/* set stop2_n, this must be set to be able to set an operating mode */
+		wago_steppers[i][0]->stat_cont1.bit.stop2_n = 1;
+		wago_steppers[i][0]->stat_cont1.bit.m_drive_by_mbx = 1;
+			
+		wago_steppers[i][0]->message.mailbox.opcode = 0x40;
+		wago_steppers[i][0]->message.mailbox.control = (toggle<<7);
+		wago_steppers[i][0]->message.mailbox.mail[0] = 0x02;
+		wago_steppers[i][0]->message.mailbox.mail[1] = 42;
+		wago_steppers[i][0]->message.mailbox.mail[2] = 42;
+		wago_steppers[i][0]->message.mailbox.mail[3] = 42;
+
+		toggle = !toggle;
+	
+		/* confirm mailbox mode is set */
+		for (int i=0; i<3; i++) {
+			printf("dev %d mailbox mode is: %d\n", i, wago_steppers[i][1]->stat_cont0.bit.mbx_mode);
+		}
+		break;
+	}
+#endif /* STATE_MACHINE_MAILBOX */
+#ifdef STATE_MACHINE_PROCESS_IMAGE 
+	enum states {
+		terminate_operating_mode = 0,
+		select_mode,
+		set_positioning_mode,
+		goto_stepping,
+		check_stepping,
+		stop
+	};
+	
+	static int position = 1000000;
+	uint16 max_accel = 5000; 	
+	static enum states current_state = terminate_operating_mode;
+	uint16 max_vel = 5000;
+	switch (current_state) {
+	case terminate_operating_mode:
+		printf("terminating existing\n");
+		for (int i=0; i<3; i++){
+			wago_steppers[i][0]->stat_cont1.bit.enable = 0;
+			wago_steppers[i][0]->stat_cont1.bit.stop2_n = 0;
+			wago_steppers[i][0]->stat_cont1.bit.start = 0;
+		}
+		current_state = select_mode;
+		break;
+	case select_mode:
+		printf("last: en %d, stop %d, start %d\n", wago_steppers[0][1]->stat_cont1.bit.enable, wago_steppers[0][1]->stat_cont1.bit.stop2_n, wago_steppers[0][1]->stat_cont1.bit.start);
+		for (int i=0; i<3; i++) {
+			wago_steppers[i][0]->stat_cont1.bit.enable = 1;
+			wago_steppers[i][0]->stat_cont1.bit.stop2_n = 1;
+			wago_steppers[i][0]->stat_cont1.bit.start = 0;
+		}
+		current_state = set_positioning_mode;
+		break;
+	case set_positioning_mode:
+		printf("last: en %d, stop %d, start %d\n", wago_steppers[0][1]->stat_cont1.bit.enable, wago_steppers[0][1]->stat_cont1.bit.stop2_n, wago_steppers[0][1]->stat_cont1.bit.start);
+		for (int i=0; i<3; i++) {
+			wago_steppers[i][0]->stat_cont1.bit.m_positioning = 1;
+		}
+		current_state = goto_stepping;
+		break;
+	case goto_stepping:
+		printf("m_positioning? %d\n", wago_steppers[0][1]->stat_cont1.bit.m_positioning);
+		for (int i=0; i<3; i++) {
+			wago_steppers[i][0]->message.positioning.velocity_lbyte = (uint8) ((max_vel>>0)&0xFF);
+			wago_steppers[i][0]->message.positioning.velocity_hbyte = (uint8) ((max_vel>>8)&0xFF);
+
+			wago_steppers[i][0]->message.positioning.acceleration_lbyte = (uint8) ((max_accel>>0)&0xFF);
+			wago_steppers[i][0]->message.positioning.acceleration_hbyte = (uint8) ((max_accel>>8)&0xFF);
+			
+			wago_steppers[i][0]->message.positioning.position_lbyte = (uint8) ((position>>0)&0xFF);
+			wago_steppers[i][0]->message.positioning.position_mbyte = (uint8) ((position>>8)&0xFF);
+			wago_steppers[i][0]->message.positioning.position_hbyte = (uint8) ((position>>16)&0xFF);
+
+			printf("err? %d\n", wago_steppers[i][1]->stat_cont0.bit.error);
+
+			wago_steppers[i][0]->stat_cont1.bit.start = 1;
+		}
+		break;
+	case check_stepping:
+
+		if (wago_steppers[0][1]->stat_cont2.status_bits.on_target)
+			printf("Reached destination!\n");
+
+		current_state = check_stepping;
+		break;
+
+	case stop:
+		printf("positioning mode: %d\n", wago_steppers[0][1]->stat_cont1.bit.m_positioning);
+		break;
+	default:
+		printf("ERROR: should not be in this state\n");
+		break;
+
+	}
+#endif /* STATE_MACHINE_PROCESS_IMAGE */
+}
+
 void input_test(char *ifname)
 {
 	printf("Starting input_test\n");
@@ -183,50 +368,25 @@ void input_test(char *ifname)
 	ec_mbxbuft tx;
 #endif
 
-#define WAGOBASE1 0x0005
-#define WAGOBASE2 0x0011
-#define WAGOBASE3 0x001d
-
-#define CONT0_OFFSET 0x0000
-#define CONTSTAT0_BIT_MBX_EN 0x20
-#define CONTROL_WRITE_OFFSET 0x0005 //FIXME
-#define STATUS_READ_OFFSET 0x0030
-#define CONTROL_OFFSET 0x0005
-#define CNTSTAT_BIT_ENABLE 0x1
-#define CNTSTAT_BIT_STOP2_N 0x2
-#define CNTSTAT_BIT_START 0x4
-#define CNTSTAT_BIT_M_POSITIONING 0x8
-#define CNTSTAT_BIT_M_PROGRAM 0x10
-#define CNTSTAT_BIT_M_REFERENCE 0x20
-#define CNTSTAT_BIT_M_JOG 0x40
-#define CNTSTAT_BIT_M_DRIVEBYMBX 0x80
-
 #define TICK_RATE 100000
 
-struct PACKED stepper_24v_t {
-	union {
-		uint8 value;
-		struct {
-			uint8 reserved : 5;
-			uint8 mbx_mode : 1;
-			uint8 reserved2 : 2;
-		}bit;
-	}stat_cont0;
-
-	uint8 reserved;
-	uint8 opcode;
-	uint8 status_mbx;
-	uint8 reply[4];
-	uint8 reserved2;
-	uint8 stat_cont3;
-	uint8 stat_cont2;
-	uint8 stat_cont1;
-};
 
 	struct timespec next_run;
 	clock_gettime(CLOCK_REALTIME, &next_run);
 	struct timespec current_time;
 	struct timespec result;
+
+	for (int i=0; i<3; i++)
+	{
+		wago_steppers[i][0] = (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MOSI[i]];
+		wago_steppers[i][1] = (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MISO[i]];
+	}
+	/*wago_steppers = { 
+		{ (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MOSI[0]], (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MISO[0]] },
+	   	{ (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MOSI[1]], (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MISO[1]] },
+		{ (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MOSI[2]], (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MISO[2]] }
+	};*/
+
 
 	while (1) {
 		/* check if timer has not elapsed */
@@ -249,8 +409,15 @@ struct PACKED stepper_24v_t {
 		ec_send_processdata();
 		ec_receive_processdata(EtherCAT_TIMEOUT);
 
+#if defined(STATE_MACHINE_PROCESS_IMAGE) || defined(STATE_MACHINE_MAILBOX)
+	static int toggle = 0;
+	if (counter > 10000) {
+		state_machine();
+	}
+#endif /* WAGO_DRIVE_MOTOR */
 
-#ifdef TEST_WAGO_SLAVE	
+
+#ifdef WAGO_TEST_SLAVE	
 		if (counter > 10000) {	
 			printf("IOmap 0x0005: %u\n", IOmap[0x0005]);
 			printf("IOmap 0x0030: %u\n", IOmap[0x0030]);
@@ -263,7 +430,7 @@ struct PACKED stepper_24v_t {
 			IOmap[WAGOBASE2+CONT0_OFFSET] = CONTSTAT0_BIT_MBX_EN;
 			IOmap[WAGOBASE3+CONT0_OFFSET] = CONTSTAT0_BIT_MBX_EN;
 		}
-#endif /* TEST_WAGO_SLAVE */
+#endif /* WAGO_TEST_SLAVE */
 
 /*		if (counter > 10000) {
 			printf("IOmap 0x0???: %u\n", IOmap[0x00??]);
@@ -296,9 +463,9 @@ struct PACKED stepper_24v_t {
 
 		struct stepper_24v_t stepper_state;
 
-		memset(&stepper_state, 0, sizeof(stepper_24v_t));
+		memset(&stepper_state, 0, sizeof(struct stepper_24v_t));
 
-		stepper_state.mbx_mode = 1;
+		stepper_state.stat_cont0.bit.mbx_mode = 1;
 
 		ec_TxPDO(4,
 #endif
