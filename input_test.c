@@ -5,6 +5,7 @@
 #include <sched.h>
 #include <pthread.h>
 #include <sys/time.h>
+#include <signal.h>
 
 #include "ethercattype.h"
 #include "nicdrv.h"
@@ -17,12 +18,36 @@
 #include "ethercatprint.h"
 
 #define NSEC_PER_SEC 1000000000
+#define TICK_RATE 100000
+
+
+/* Error Codes */
+#define ERR_SUCCESS 0
+#define ERR_ETH_DEV_FAIL -1
+#define ERR_EC_NO_SLAVES -2
+#define ERR_FAILED_SAFE_OP -3
+#define ERR_FAILED_OP -4
+#define ERR_STATE_MACHINE_STOPPED -5
+
+struct input_msg_t {
+	int quit;
+};
+
+void check_input(void *ptr)
+{
+	struct input_msg_t *input_msg = (struct input_msg_t *) ptr;
+	while (getc(stdin) != 'q');
+	
+	printf("quitting\n");
+	input_msg->quit = 1;
+}
 
 char IOmap[4096];
 
 /* args */
 char *eth_dev = "eth0";
 uint32 cycle_time = 1000;
+uint32 move_coord = 0;
 
 /* wago device configuration */
 const int WAGO_DEVICE_OFFSETS_MOSI[] = {0x0005, 0x0011, 0x001d};
@@ -115,10 +140,7 @@ typedef struct PACKED
 #define EtherCAT_TIMEOUT EC_TIMEOUTRET
 
 struct sched_param schedp;
-pthread_t ethercat_thread_handle;		
-pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-uint32 cycle_count = 0;
+int32 cycle_count = 0;
 in_EK1002_streamt *in_EK1002;
 
 int streampos; //used uninitialised?!
@@ -178,7 +200,7 @@ void ec_sync(int64 reftime, int64 cycletime, int64 *offsettime)
 	*offsettime = -(delta/100) - (integral/20);
 }
 
-void state_machine()
+int state_machine()
 {
 #ifdef STATE_MACHINE_MAILBOX
 	enum states {
@@ -220,17 +242,17 @@ void state_machine()
 		break;
 	}
 #endif /* STATE_MACHINE_MAILBOX */
-#ifdef STATE_MACHINE_PROCESS_IMAGE 
+#ifdef STATE_MACHINE_WAGO_PROCESS_IMAGE 
 	enum states {
 		terminate_operating_mode = 0,
 		select_mode,
 		set_positioning_mode,
+		check_wait_positioning_mode,
 		goto_stepping,
 		check_stepping,
 		stop
 	};
 	
-	static int position = 1000000;
 	uint16 max_accel = 5000; 	
 	static enum states current_state = terminate_operating_mode;
 	uint16 max_vel = 5000;
@@ -258,66 +280,80 @@ void state_machine()
 		for (int i=0; i<3; i++) {
 			wago_steppers[i][0]->stat_cont1.bit.m_positioning = 1;
 		}
-		current_state = goto_stepping;
+		current_state = check_wait_positioning_mode;
+		break;
+	case check_wait_positioning_mode:
+		printf("positioning mode active? s1:%s s2:%s s3:%s\n",
+			(wago_steppers[0][1]->stat_cont1.bit.m_positioning)?"y":"n",
+			(wago_steppers[1][1]->stat_cont1.bit.m_positioning)?"y":"n",	
+			(wago_steppers[2][1]->stat_cont1.bit.m_positioning)?"y":"n"
+		);
+		int all_ready = 1;
+		for (int i=0; i<3; i++) {
+			if (!wago_steppers[i][1]->stat_cont1.bit.m_positioning){
+				all_ready = 0;
+				printf("%d not ready! value: %d\n", i, wago_steppers[i][1]->stat_cont1.bit.m_positioning);
+			}
+		}
+		if (all_ready)	
+			current_state = goto_stepping;
 		break;
 	case goto_stepping:
-		printf("m_positioning? %d\n", wago_steppers[0][1]->stat_cont1.bit.m_positioning);
 		for (int i=0; i<3; i++) {
+			printf("m_positioning? %d\n", wago_steppers[i][1]->stat_cont1.bit.m_positioning);
+			
 			wago_steppers[i][0]->message.positioning.velocity_lbyte = (uint8) ((max_vel>>0)&0xFF);
 			wago_steppers[i][0]->message.positioning.velocity_hbyte = (uint8) ((max_vel>>8)&0xFF);
 
 			wago_steppers[i][0]->message.positioning.acceleration_lbyte = (uint8) ((max_accel>>0)&0xFF);
 			wago_steppers[i][0]->message.positioning.acceleration_hbyte = (uint8) ((max_accel>>8)&0xFF);
 			
-			wago_steppers[i][0]->message.positioning.position_lbyte = (uint8) ((position>>0)&0xFF);
-			wago_steppers[i][0]->message.positioning.position_mbyte = (uint8) ((position>>8)&0xFF);
-			wago_steppers[i][0]->message.positioning.position_hbyte = (uint8) ((position>>16)&0xFF);
+			wago_steppers[i][0]->message.positioning.position_lbyte = (uint8) ((move_coord>>0)&0xFF);
+			wago_steppers[i][0]->message.positioning.position_mbyte = (uint8) ((move_coord>>8)&0xFF);
+			wago_steppers[i][0]->message.positioning.position_hbyte = (uint8) ((move_coord>>16)&0xFF);
 
 			printf("err? %d\n", wago_steppers[i][1]->stat_cont0.bit.error);
 
 			wago_steppers[i][0]->stat_cont1.bit.start = 1;
 		}
+		current_state = check_stepping;
 		break;
 	case check_stepping:
 
-		if (wago_steppers[0][1]->stat_cont2.status_bits.on_target)
+		if (wago_steppers[0][1]->stat_cont2.status_bits.on_target){
 			printf("Reached destination!\n");
-
-		current_state = check_stepping;
+			current_state = stop;
+		}
 		break;
 
 	case stop:
 		printf("positioning mode: %d\n", wago_steppers[0][1]->stat_cont1.bit.m_positioning);
+		return ERR_STATE_MACHINE_STOPPED;
 		break;
 	default:
 		printf("ERROR: should not be in this state\n");
 		break;
 
 	}
-#endif /* STATE_MACHINE_PROCESS_IMAGE */
+	return 0;
+#endif /* STATE_MACHINE_WAGO_PROCESS_IMAGE */
 }
 
-void input_test(char *ifname)
+/* Bring slaves from init to pre-op */
+int ethercat_init_to_pre_op(char *ifname)
 {
-	printf("Starting input_test\n");
-
 	/* initialise SOEM, bind socket to ifname */
-	if (!ec_init(eth_dev))
-	{
-		printf("Can't open device %s\n", eth_dev);
-		return;
-	}
-	
-	printf("EtherCAT initialised on %s\n", eth_dev);
-	
+	return (ec_init(ifname)>0) ? ERR_SUCCESS : ERR_ETH_DEV_FAIL;
+}
+
+/* Bring slaves into safe-op */
+int ethercat_pre_op_to_safe_op()
+{
 	/* find slaves and automatically configure */
 	if (ec_config(FALSE, &IOmap) <= 0 ) {
-		printf("No slaves found\n");
 		ec_close();
-		return;
+		return ERR_EC_NO_SLAVES;
 	}
-
-	ec_configdc();
 
 	while(EcatError) printf("%s", ec_elist2string());
 
@@ -338,10 +374,23 @@ void input_test(char *ifname)
 				printf("Slave %d State=%2x StatusCode=%4x : %s\n", i, ec_slave[i].state, ec_slave[i].ALstatuscode, ec_ALstatuscode2string(ec_slave[i].ALstatuscode));
 			}
 		}
+		return ERR_FAILED_SAFE_OP;
 	}
 
-//	ec_readstate();
-	ec_slave[0].state = EC_STATE_OPERATIONAL;	
+}
+
+/* Bring slaves back to pre_op */
+int ethercat_safe_op_to_pre_op() {
+	ec_slave[0].state = EC_STATE_PRE_OP;
+	ec_writestate(0);
+	ec_statecheck(0, EC_STATE_PRE_OP, EC_TIMEOUTSTATE);
+}
+
+/* Bring slaves into op */
+int ethercat_safe_op_to_op()
+{
+	ec_slave[0].state = EC_STATE_OPERATIONAL;		
+	
 	ec_send_processdata();
 	int wkc = ec_receive_processdata(EtherCAT_TIMEOUT);
 
@@ -354,7 +403,70 @@ void input_test(char *ifname)
 		uint8 state = ec_statecheck(i, 8, EC_TIMEOUTSTATE);
 		printf("Slave %d state: %u\n", i,state);
 	}*/
-	printf("lowest state: %d\n", ec_readstate());
+
+	if (ec_readstate() != EC_STATE_OPERATIONAL) {
+		return ERR_FAILED_OP;
+	}
+
+	return ERR_SUCCESS;
+}
+
+/* Bring slaves back to safe op */
+int ethercat_op_to_safe_op(){
+
+	struct timespec next_run;
+	clock_gettime(CLOCK_REALTIME, &next_run);
+	struct timespec current_time;
+	struct timespec result;
+
+	ec_slave[0].state = EC_STATE_SAFE_OP;
+	ec_writestate(0);
+	
+	/* still need to maintain synchronization until we get back to safe op */		
+	while (ec_statecheck(0, EC_STATE_SAFE_OP, EC_TIMEOUTSTATE)!=EC_STATE_SAFE_OP) {
+		/* check if timer has not elapsed */
+		clock_gettime(CLOCK_REALTIME, &current_time);
+		/* FIXME I think print statements significantly slow this down? should test at some point */	   
+		if ( compare_timespec(current_time, next_run) == -1 ){
+			continue;
+		}
+
+		/* timer has elapsed update expiration time */
+		memcpy(&next_run, &current_time, sizeof(struct timespec));
+		add_timespec(&next_run, TICK_RATE); /* add ns to current time */
+
+		/* timer is sorted, lets go!!! */
+		// the following should not be needed as it is now done in the ethercat thread 
+		ec_send_processdata();
+		ec_receive_processdata(EtherCAT_TIMEOUT);
+	}
+
+}
+
+void input_test(struct input_msg_t *input_msg)
+{
+	printf("Starting input_test\n");
+
+	if (ethercat_init_to_pre_op(eth_dev) < 0) {
+		printf("EtherCAT: Can't open device %s\n", eth_dev);
+		return;
+	}
+	printf("EtherCAT: Initialised on %s.\n", eth_dev);
+
+	if (ethercat_pre_op_to_safe_op() < 0) {
+		printf("No slaves found\n");
+		return;
+	}
+	printf("EtherCAT: Slaves are in safe-op\n");
+	/* use distributed clocks */
+	ec_configdc();
+
+	if (ethercat_safe_op_to_op() < 0) {
+		printf("EtherCAT: Failed to bring slaves into operational state\n");
+		return;
+	}
+	printf("EtherCAT: Slaves are in op\n");
+//	ec_readstate();
 
 #ifdef COUNTER
 	int counter = 0;
@@ -368,13 +480,12 @@ void input_test(char *ifname)
 	ec_mbxbuft tx;
 #endif
 
-#define TICK_RATE 100000
-
 
 	struct timespec next_run;
 	clock_gettime(CLOCK_REALTIME, &next_run);
 	struct timespec current_time;
 	struct timespec result;
+
 
 	for (int i=0; i<3; i++)
 	{
@@ -387,8 +498,7 @@ void input_test(char *ifname)
 		{ (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MOSI[2]], (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MISO[2]] }
 	};*/
 
-
-	while (1) {
+	while (input_msg->quit == 0) {
 		/* check if timer has not elapsed */
 		clock_gettime(CLOCK_REALTIME, &current_time);
 		/* FIXME I think print statements significantly slow this down? should test at some point */	   
@@ -406,15 +516,17 @@ void input_test(char *ifname)
 		add_timespec(&next_run, TICK_RATE); /* add ns to current time */
 
 		/* timer is sorted, lets go!!! */
+		// the following should not be needed as it is now done in the ethercat thread 
 		ec_send_processdata();
 		ec_receive_processdata(EtherCAT_TIMEOUT);
 
-#if defined(STATE_MACHINE_PROCESS_IMAGE) || defined(STATE_MACHINE_MAILBOX)
+
+#if defined(STATE_MACHINE_WAGO_PROCESS_IMAGE) || defined(STATE_MACHINE_MAILBOX)
 	static int toggle = 0;
-	if (counter > 10000) {
-		state_machine();
+	if (counter > 1000) {
+		if (state_machine() == ERR_STATE_MACHINE_STOPPED) break;
 	}
-#endif /* WAGO_DRIVE_MOTOR */
+#endif /* STATE_MACHINE_WAGO_PROCESS_IMAGE || STATE_MACHINE_MAILBOX */
 
 
 #ifdef WAGO_TEST_SLAVE	
@@ -570,6 +682,10 @@ void input_test(char *ifname)
 #endif /* STEPPER_SII */
 	}
 
+	/* bring the device back to pre-op so it is safe to disconnect */
+	ethercat_op_to_safe_op();
+	ethercat_safe_op_to_pre_op();
+
 /*	// list detected slaves by name
 	for (int i=1; i<=ec_slavecount; i++) {
 		printf("Slave %d: %s\n", i, ec_slave[i].name);
@@ -585,7 +701,10 @@ void ethercat_thread( void *ptr )
 	int rc;
 	int ht;
 	int pcounter = 0;
-	int64 cycletime;
+	int64 cycletime = *(int*) ptr * 1000; /* cycletime in ns */
+
+	pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+	pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 	rc = pthread_mutex_lock(&mutex);
 	rc = gettimeofday(&tp, NULL);
@@ -593,7 +712,7 @@ void ethercat_thread( void *ptr )
 	/* Convert from timeval to timespec */
 	ts.tv_sec = tp.tv_sec;
 	ht = (tp.tv_usec/1000) + 1; /* round to nearest ms */
-	ts.tv_nsec = ht * 1000000; /* cycletime in ns */
+	ts.tv_nsec = ht * 1000000;
 	static int64 toff = 0;
 
 	printf("RealTime EtherCAT Thread started.\n");
@@ -613,12 +732,13 @@ void ethercat_thread( void *ptr )
 		//not needed?
 		cycle_count++;
 
-		if ((in_EK1002->counter != pcounter) && (streampos < (MAXSTREAM-1))) {
+		/* weird error detection block */
+	/*	if ((in_EK1002->counter != pcounter) && (streampos < (MAXSTREAM-1))) {*/
 			/* 
 			 *  check if there are timing problems in master
 			 * if so, overwrite stream data so it shows up clearly in plots? 
 			 */
-			if (in_EK1002->counter > (pcounter+1)) {
+/*			if (in_EK1002->counter > (pcounter+1)) {
 				printf("timing problem?!\n");
 				for (int i=0; i<50; i++) {
 					stream1[streampos] = 20000;
@@ -631,7 +751,7 @@ void ethercat_thread( void *ptr )
 				}
 			}
 			pcounter = in_EK1002->counter;
-		}
+		}*/
 		
 		/*calculate toff to get linux time and ?DC? synced */
 		ec_sync(ec_DCtime, cycletime, &toff);	
@@ -648,7 +768,7 @@ void help(void)
 void process_cmd_opts(int argc, char *argv[])
 {	
 	int c;
-	while ( (c=getopt(argc, argv, "c:d:")) != -1) {
+	while ( (c=getopt(argc, argv, "c:d:m:")) != -1) {
 		switch (c) {
 		case 'c':
 			cycle_time = atoi(optarg);
@@ -657,6 +777,10 @@ void process_cmd_opts(int argc, char *argv[])
 		case 'd':
 			eth_dev = optarg;
 			printf("setting ethernet device to %s\n", eth_dev);
+			break;
+		case 'm':
+			move_coord = atoi(optarg);
+			printf("Moving wago steppers to: %d\n", move_coord);
 			break;
 		case '?':
 			help();
@@ -669,10 +793,13 @@ void process_cmd_opts(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
+	/* should probably do some error checking in this function */
 	int iret1;
 	int ctime;
 	struct sched_param param;
 	int policy = SCHED_OTHER;
+	pthread_t ethercat_thread_handle;		
+	pthread_t input_handle;
 
 	printf("SOEM (Simple Open EtherCAT Master)\nInput Test\n");
 
@@ -686,15 +813,18 @@ int main(int argc, char *argv[])
 	usleep(1000);
 		
 	/* create RealTime thread */
-	//iret1 = pthread_create( &ethercat_thread_handle, NULL, (void *) &ethercat_thread, (void *) ctime);
+	/*iret1 = pthread_create( &ethercat_thread_handle, NULL, (void *) &ethercat_thread, (void *) &cycle_time);*/
 
 	/* set thread priority */
-	//memset(&param, 0, sizeof(param));
-	//param.sched_priority = 40;
-	//iret1 = pthread_setschedparam(ethercat_thread_handle, policy, &param);
+/*	memset(&param, 0, sizeof(param));
+	param.sched_priority = 40;
+	iret1 = pthread_setschedparam(ethercat_thread_handle, policy, &param);*/
 
-	/* start a cyclic routine? */
-	input_test(argv[1]);
+	struct input_msg_t input_msg;
+	pthread_create( &input_handle , NULL, (void *) &check_input, (void *) &input_msg);
+
+	/* start a cyclic routine */
+	input_test(&input_msg);
 
 	schedp.sched_priority = 0;
 	sched_setscheduler(0, SCHED_OTHER, &schedp);
