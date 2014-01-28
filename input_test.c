@@ -29,6 +29,8 @@
 #define ERR_FAILED_OP -4
 #define ERR_STATE_MACHINE_STOPPED -5
 
+pthread_mutex_t io_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 struct input_msg_t {
 	int quit;
 };
@@ -244,45 +246,105 @@ int state_machine()
 #endif /* STATE_MACHINE_MAILBOX */
 #ifdef STATE_MACHINE_WAGO_PROCESS_IMAGE 
 	enum states {
-		terminate_operating_mode = 0,
-		select_mode,
+		set_terminate_operating_mode = 0,
+		confirm_terminate_operating_mode,
+		set_setup_mode,
+		confirm_setup_mode,
 		set_positioning_mode,
-		check_wait_positioning_mode,
-		goto_stepping,
-		check_stepping,
+		confirm_positioning_mode,
+		set_position,
+		check_position,
 		stop
 	};
 	
 	uint16 max_accel = 5000; 	
-	static enum states current_state = terminate_operating_mode;
+	static enum states current_state = set_terminate_operating_mode;
 	uint16 max_vel = 5000;
+	int confirmed;
+
 	switch (current_state) {
-	case terminate_operating_mode:
+	case set_terminate_operating_mode:
 		printf("terminating existing\n");
+		
+		//printf("term: attempting to lock\n");
+		pthread_mutex_lock(&io_mutex);
+		//printf("term: locked\n");
 		for (int i=0; i<3; i++){
 			wago_steppers[i][0]->stat_cont1.bit.enable = 0;
 			wago_steppers[i][0]->stat_cont1.bit.stop2_n = 0;
 			wago_steppers[i][0]->stat_cont1.bit.start = 0;
 		}
-		current_state = select_mode;
+		pthread_mutex_unlock(&io_mutex);
+		//printf("term: freed\n");
+
+		current_state = confirm_terminate_operating_mode;
 		break;
-	case select_mode:
-		printf("last: en %d, stop %d, start %d\n", wago_steppers[0][1]->stat_cont1.bit.enable, wago_steppers[0][1]->stat_cont1.bit.stop2_n, wago_steppers[0][1]->stat_cont1.bit.start);
+	case confirm_terminate_operating_mode:
+		printf("Terminate Operating Mode\n");
+		confirmed = 1;
+		pthread_mutex_lock(&io_mutex);
+		for (int i=0; i<3; i++) {
+			if (wago_steppers[i][1]->stat_cont1.bit.enable != 0) {
+				printf("%d: Enable not yet reset!\n", i);
+				confirmed = 0;
+			}
+			if (wago_steppers[i][1]->stat_cont1.bit.stop2_n != 0) {
+				printf("%d: Stop not yet reset!\n", i);
+				confirmed = 0;
+			}
+			if (wago_steppers[i][1]->stat_cont1.bit.start != 0) {
+				printf("%d: start not yet reset!\n", i);
+				confirmed = 0;
+			}
+	
+		}
+		pthread_mutex_unlock(&io_mutex);
+		if (confirmed) 
+			current_state=set_setup_mode;
+		break;
+	case set_setup_mode:
+		pthread_mutex_lock(&io_mutex);
 		for (int i=0; i<3; i++) {
 			wago_steppers[i][0]->stat_cont1.bit.enable = 1;
 			wago_steppers[i][0]->stat_cont1.bit.stop2_n = 1;
 			wago_steppers[i][0]->stat_cont1.bit.start = 0;
 		}
-		current_state = set_positioning_mode;
+		pthread_mutex_unlock(&io_mutex);
+		current_state = confirm_setup_mode;
+		break;
+	case confirm_setup_mode:
+		printf("Setup Mode\n");
+		confirmed = 1;
+		pthread_mutex_lock(&io_mutex);
+		for (int i=0; i<3; i++) {
+			if (wago_steppers[i][1]->stat_cont1.bit.enable != 1) {
+				printf("%d: Trying to set enable to: %d Enable is: %d!\n", i, wago_steppers[i][0]->stat_cont1.bit.enable, wago_steppers[i][1]->stat_cont1.bit.enable);
+				confirmed = 0;
+			}
+			if (wago_steppers[i][1]->stat_cont1.bit.stop2_n != 1) {
+				printf("%d: Trying to set stop to: %d Stop is: %d!\n", i, wago_steppers[i][0]->stat_cont1.bit.stop2_n, wago_steppers[i][1]->stat_cont1.bit.stop2_n);
+				confirmed = 0;
+			}
+			if (wago_steppers[i][1]->stat_cont1.bit.start != 0) {
+				printf("%d: Trying to set start to: %d Start is: %d!\n", i, wago_steppers[i][0]->stat_cont1.bit.start, wago_steppers[i][1]->stat_cont1.bit.start);
+				confirmed = 0;
+			}	
+		}
+		pthread_mutex_unlock(&io_mutex);
+
+		if (confirmed)
+			current_state=set_positioning_mode;
 		break;
 	case set_positioning_mode:
-		printf("last: en %d, stop %d, start %d\n", wago_steppers[0][1]->stat_cont1.bit.enable, wago_steppers[0][1]->stat_cont1.bit.stop2_n, wago_steppers[0][1]->stat_cont1.bit.start);
+		pthread_mutex_lock(&io_mutex);
 		for (int i=0; i<3; i++) {
 			wago_steppers[i][0]->stat_cont1.bit.m_positioning = 1;
 		}
-		current_state = check_wait_positioning_mode;
+		pthread_mutex_unlock(&io_mutex);
+		current_state = confirm_positioning_mode;
 		break;
-	case check_wait_positioning_mode:
+	case confirm_positioning_mode:
+		pthread_mutex_lock(&io_mutex);
 		printf("positioning mode active? s1:%s s2:%s s3:%s\n",
 			(wago_steppers[0][1]->stat_cont1.bit.m_positioning)?"y":"n",
 			(wago_steppers[1][1]->stat_cont1.bit.m_positioning)?"y":"n",	
@@ -292,13 +354,14 @@ int state_machine()
 		for (int i=0; i<3; i++) {
 			if (!wago_steppers[i][1]->stat_cont1.bit.m_positioning){
 				all_ready = 0;
-				printf("%d not ready! value: %d\n", i, wago_steppers[i][1]->stat_cont1.bit.m_positioning);
 			}
 		}
+		pthread_mutex_unlock(&io_mutex);
 		if (all_ready)	
-			current_state = goto_stepping;
+			current_state = set_position;
 		break;
-	case goto_stepping:
+	case set_position:
+		pthread_mutex_lock(&io_mutex);
 		for (int i=0; i<3; i++) {
 			printf("m_positioning? %d\n", wago_steppers[i][1]->stat_cont1.bit.m_positioning);
 			
@@ -316,18 +379,22 @@ int state_machine()
 
 			wago_steppers[i][0]->stat_cont1.bit.start = 1;
 		}
-		current_state = check_stepping;
+		pthread_mutex_unlock(&io_mutex);
+		current_state = check_position;
 		break;
-	case check_stepping:
-
+	case check_position:
+		pthread_mutex_lock(&io_mutex);
 		if (wago_steppers[0][1]->stat_cont2.status_bits.on_target){
 			printf("Reached destination!\n");
 			current_state = stop;
 		}
+		pthread_mutex_unlock(&io_mutex);
 		break;
 
 	case stop:
+		pthread_mutex_lock(&io_mutex);
 		printf("positioning mode: %d\n", wago_steppers[0][1]->stat_cont1.bit.m_positioning);
+		pthread_mutex_unlock(&io_mutex);
 		return ERR_STATE_MACHINE_STOPPED;
 		break;
 	default:
@@ -443,15 +510,18 @@ int ethercat_op_to_safe_op(){
 
 }
 
-void input_test(struct input_msg_t *input_msg)
+void ethercat_thread(void * ptr)//(struct input_msg_t *input_msg)
 {
 	printf("Starting input_test\n");
+
+	struct input_msg_t *input_msg = (struct input_msg_t *) ptr;
 
 	if (ethercat_init_to_pre_op(eth_dev) < 0) {
 		printf("EtherCAT: Can't open device %s\n", eth_dev);
 		return;
 	}
 	printf("EtherCAT: Initialised on %s.\n", eth_dev);
+
 
 	if (ethercat_pre_op_to_safe_op() < 0) {
 		printf("No slaves found\n");
@@ -468,24 +538,10 @@ void input_test(struct input_msg_t *input_msg)
 	printf("EtherCAT: Slaves are in op\n");
 //	ec_readstate();
 
-#ifdef COUNTER
-	int counter = 0;
-#endif
-#ifdef MAGNET_COUNTER
-	int magnet_direction = 0;
-#endif
-
-#ifdef MBX_TEST
-	ec_mbxbuft rx;
-	ec_mbxbuft tx;
-#endif
-
-
 	struct timespec next_run;
 	clock_gettime(CLOCK_REALTIME, &next_run);
 	struct timespec current_time;
 	struct timespec result;
-
 
 	for (int i=0; i<3; i++)
 	{
@@ -503,9 +559,9 @@ void input_test(struct input_msg_t *input_msg)
 		clock_gettime(CLOCK_REALTIME, &current_time);
 		/* FIXME I think print statements significantly slow this down? should test at some point */	   
 		if ( compare_timespec(current_time, next_run) == -1 ){
+			/* FIXME should there be a usleep here to avoid starvation of other thread? */
 			continue;
 		}
-		//printf("here2\n");
 #ifdef SHOW_TPS
 		int valid = subtract_timespec(current_time, next_run, &result);
 		printf("valid? %d. difference is %d sec and %ld nsec\n", valid, result.tv_sec, result.tv_nsec);
@@ -517,184 +573,23 @@ void input_test(struct input_msg_t *input_msg)
 
 		/* timer is sorted, lets go!!! */
 		// the following should not be needed as it is now done in the ethercat thread 
+		pthread_mutex_lock(&io_mutex);
 		ec_send_processdata();
 		ec_receive_processdata(EtherCAT_TIMEOUT);
+		pthread_mutex_unlock(&io_mutex);
 
-
-#if defined(STATE_MACHINE_WAGO_PROCESS_IMAGE) || defined(STATE_MACHINE_MAILBOX)
-	static int toggle = 0;
-	if (counter > 1000) {
-		if (state_machine() == ERR_STATE_MACHINE_STOPPED) break;
-	}
-#endif /* STATE_MACHINE_WAGO_PROCESS_IMAGE || STATE_MACHINE_MAILBOX */
-
-
-#ifdef WAGO_TEST_SLAVE	
-		if (counter > 10000) {	
-			printf("IOmap 0x0005: %u\n", IOmap[0x0005]);
-			printf("IOmap 0x0030: %u\n", IOmap[0x0030]);
-			printf("IOmap 0x003c: %u\n", IOmap[0x003c]);
-			printf("IOmap 0x0048: %u\n", IOmap[0x0048]);
-			printf("IOmap 0x0000: %u\n", IOmap[0x0000]);			
-			printf("IOmap 0x0029: %u\n", IOmap[0x0029]);
-			
-			IOmap[WAGOBASE1+CONT0_OFFSET] = CONTSTAT0_BIT_MBX_EN;
-			IOmap[WAGOBASE2+CONT0_OFFSET] = CONTSTAT0_BIT_MBX_EN;
-			IOmap[WAGOBASE3+CONT0_OFFSET] = CONTSTAT0_BIT_MBX_EN;
-		}
-#endif /* WAGO_TEST_SLAVE */
-
-/*		if (counter > 10000) {
-			printf("IOmap 0x0???: %u\n", IOmap[0x00??]);
-
-			IOmap[
-		}*/
-		/*struct stepper_24v_t stepper_state;
-		memset(&stepper_state, 0, sizeof(struct stepper_24v_t));
-		stepper_state.stat_cont0.bit.mbx_mode = 0;
-
-		int data_size = sizeof(uint8);
-		printf("data is: %u, data size is %u\n", stepper_state.stat_cont0, data_size);
-		//ec_TxPDO(2, 0x0005, &data_size, &(stepper_state.stat_cont0), EC_TIMEOUTTXM);
-
-		printf("wrote %u\n", data_size);
-
-		uint8 ret;
-		ec_RxPDO(2,  0x6000, sizeof(uint8), &ret);
-		printf("ret: %u\n", ret);
-		fflush(stdout);*/
-		//ec_mbxsend(4, 
-
-#ifdef MBX_TEST
-		//mailbox commands, unused
-//		ec_clearmbx(rx);
-//		ec_clearmbx(tx);
-
-//		ec_mboxsend(4, &tx, ECTIMEOUTTXM);
-//		ec_mboxreceive(4, &rx, ECTIMEOUTRXM);
-
-		struct stepper_24v_t stepper_state;
-
-		memset(&stepper_state, 0, sizeof(struct stepper_24v_t));
-
-		stepper_state.stat_cont0.bit.mbx_mode = 1;
-
-		ec_TxPDO(4,
-#endif
-
-/*
-		//this code was to use SDO objects to read from inputs, inputs aren't connected to anything though? xP
-		int psize = 2;
-		char data[3];
-		printf("here1\n");
-		fflush(stdout);
-		//ec_SDOread(4, 0x7040, 0x01, FALSE, &psize, (void *)&data, EC_TIMEOUTRXM);
-		ec_SDOread(4,0x6000, 0x01, FALSE, &psize, (void *)&data, EC_TIMEOUTRXM);
-		printf("here2\n");
-		fflush(stdout);
-		printf("size of data returned is: %d\n", psize);
-		printf("result is: %u", (uint8)data);*/
-
-/*		for (int i=0; i<=4; i++) {
-			printf("name: %s\n", ec_slave[i].name);
-			uint8 *inval = ec_slave[i].inputs;
-			uint8 *outval = ec_slave[i].outputs;		
-			//printf("Val: %u\n",	*val);
-			printf("inpointer: %p\n", inval);
-			printf("outpointer: %p\n", outval);
-
-		}*/
-		/*for (int i=0; i<10; i++) {
-			printf("iomap%d: %d\n", i, IOmap[i]);
-			printf("ptr: %p\n", &(IOmap[i]));
-		}*/
-#ifdef DUMP_IOMAP_24VSTEPPER
-		uint8 *ptr = ec_slave[4].inputs;
-		for (int i=0; i<42; i++) {
-			printf("data%d: %u\t", i, ptr[i]);
-		}
-		printf("\n");
-#endif /* DUMP_IOMAP_24VSTEPPER */
-#ifdef MAGNET_COUNTER
-		//printf("here\n");
-		if (counter > 10000) {
-			magnet_direction = (magnet_direction == 1) ? 0 : 1;
-			*(ec_slave[3].outputs) = (uint8) magnet_direction;
-			printf("set magnet direction to: %u\n", *(ec_slave[3].outputs) );
-			if (magnet_direction == 1)
-				IOmap[0x0029] = (uint8) 0x0F;
-			else
-				IOmap[0x0029] = (uint8) 0x00;
-			
-#ifdef PRINT10000
-			uint8 *ptr = ec_slave[4].inputs;
-			for (int i=0; i<42; i++) 
-				printf("data%d: %u\t", i, ptr[i]);
-#elif ALTPRINT10000
-			for (int i=0; i<60; i++)
-				printf("data%d: %u\t", i, IOmap[i]);
-#endif
-		}		
-#endif /* MAGNET_COUNTER */
-#ifdef COUNTER
-		if (counter > 10000)
-			counter = 0;
-
-		counter++;
-#endif
-#ifdef STEPPER_SII	
-		uint8 nSM, iSM, tSM;
-		int outputs_bo, inputs_bo, rdl;
-		//*((ec_slave[4].outputs)+C1_OFFSET) = CONTROL_BIT_ENABLE | CONTROL_BIT_STOP2_N | CONTROL_BIT_START;
-		int wkc = ec_SDOread(4, ECT_SDO_SMCOMMTYPE, 0x00, FALSE, &rdl, &nSM, EC_TIMEOUTRXM);
-		/* positive result from slave ? */
-		if ((wkc > 0) && (nSM > 2)) {
-			nSM--;
-
-			if (nSM > EC_MAXSM)
-				nSM = EC_MAXSM;
-
-			/* iterate for every SM type defined */
-			for (iSM = 2; iSM <= nSM; iSM++) {
-				rdl = sizeof(tSM); tSM=0;
-				/* read SyncManager Communication Type */
-				wkc = ec_SDOread(4, ECT_SDO_SMCOMMTYPE, iSM + 1, FALSE, &rdl, &tSM, EC_TIMEOUTRXM);
-				if (wkc > 0 ) {
-					if (tSM == 3) { //outputs
-						/* read the assign RXPDO */
-						printf("SM%1d outputs\n addr b index: sub bitl data_type name\n", iSM);
-						si_PDOassign(4, ECT_SDO_PDOASSIGN + iSM, (int)(ec_slave[4].outputs - (uint8 *)&IOmap[0]), outputs_bo);
-					}
-				
-					if (tSM == 4) //inputs
-					{
-						/* read the assign TXPDO */
-						printf("SM:%1d inputs\n addr b index: sub bitl data_type name\n", iSM);
-						si_PDOassign(4, ECT_SDO_PDOASSIGN + iSM, (int)(ec_slave[4].outputs - (uint8 *)&IOmap[0]), inputs_bo);
-					}
-				}
-			}
-		}
-
-		uint8 result = IOmap[STATUS_READ_OFFSET];
-		//uint8 result = *(ec_slave[4].outputs+STATUS_READ_OFFSET);
-		printf("result: %u\n", result);
-#endif /* STEPPER_SII */
+		/* FIXME this is dangerous for time constraints but otherwise can't get other thread to get access :S */
+		usleep(1);
 	}
 
 	/* bring the device back to pre-op so it is safe to disconnect */
 	ethercat_op_to_safe_op();
 	ethercat_safe_op_to_pre_op();
 
-/*	// list detected slaves by name
-	for (int i=1; i<=ec_slavecount; i++) {
-		printf("Slave %d: %s\n", i, ec_slave[i].name);
-	}*/
-
 	ec_close();	
 }
 
-void ethercat_thread( void *ptr )
+void ethercat_thread7( void *ptr )
 {
 	struct timespec ts;
 	struct timeval tp;
@@ -716,6 +611,12 @@ void ethercat_thread( void *ptr )
 	static int64 toff = 0;
 
 	printf("RealTime EtherCAT Thread started.\n");
+	
+/*	if (ethercat_init_to_pre_op(eth_dev) < 0) {
+		printf("EtherCAT: Can't open device %s\n", eth_dev);
+		return;
+	}
+	printf("EtherCAT: Initialised on %s.\n", eth_dev);*/
 
 	while (1) {
 		/* calculate next cycle start */
@@ -726,8 +627,8 @@ void ethercat_thread( void *ptr )
 
 		rc = gettimeofday(&tp, NULL);
 
-		ec_send_processdata();
-		ec_receive_processdata(EtherCAT_TIMEOUT); //1 second timeout, this should probably be decreased?
+//		ec_send_processdata();
+//		ec_receive_processdata(EtherCAT_TIMEOUT); //1 second timeout, this should probably be decreased?
 
 		//not needed?
 		cycle_count++;
@@ -810,21 +711,56 @@ int main(int argc, char *argv[])
 	schedp.sched_priority = 30;
 	sched_setscheduler(0, SCHED_FIFO, &schedp);
 
-	usleep(1000);
-		
+	/* attach input 'hook' */	
+	struct input_msg_t input_msg;
+	memset(&input_msg, 0, sizeof(input_msg));
+	pthread_create( &input_handle , NULL, (void *) &check_input, (void *) &input_msg);
+	
 	/* create RealTime thread */
-	/*iret1 = pthread_create( &ethercat_thread_handle, NULL, (void *) &ethercat_thread, (void *) &cycle_time);*/
+	iret1 = pthread_create( &ethercat_thread_handle, NULL, (void *) &ethercat_thread, (void *) &input_msg);
 
 	/* set thread priority */
-/*	memset(&param, 0, sizeof(param));
+	memset(&param, 0, sizeof(param));
 	param.sched_priority = 40;
-	iret1 = pthread_setschedparam(ethercat_thread_handle, policy, &param);*/
-
-	struct input_msg_t input_msg;
-	pthread_create( &input_handle , NULL, (void *) &check_input, (void *) &input_msg);
+	iret1 = pthread_setschedparam(ethercat_thread_handle, policy, &param);
 
 	/* start a cyclic routine */
-	input_test(&input_msg);
+	//input_test(&input_msg);
+
+	int counter = 0;
+	sleep(2);
+
+	struct timespec next_run;
+	clock_gettime(CLOCK_REALTIME, &next_run);
+	struct timespec current_time;
+	struct timespec result;
+
+	/* FIXME: clean up triple timer thing, its just stupid */
+	while (input_msg.quit == 0) {
+		/* check if timer has not elapsed */
+/*		clock_gettime(CLOCK_REALTIME, &current_time);
+		if ( compare_timespec(current_time, next_run) == -1 ){
+			usleep(10000);
+			continue;
+		}*/
+#ifdef SHOW_TPS
+		int valid = subtract_timespec(current_time, next_run, &result);
+		printf("valid? %d. difference is %d sec and %ld nsec\n", valid, result.tv_sec, result.tv_nsec);
+#endif /* SHOW_TPS */
+
+		/* timer has elapsed update expiration time */
+	/*	memcpy(&next_run, &current_time, sizeof(struct timespec));
+		add_timespec(&next_run, TICK_RATE);*/ /* add ns to current time */
+		
+		/* we're ready to run! */
+//		static int toggle = 0;
+//		if (counter > 1000) {
+		usleep(500000);
+			if (state_machine() == ERR_STATE_MACHINE_STOPPED) break;
+//		}
+	}
+
+	/* FIXME maybe join thread? */
 
 	schedp.sched_priority = 0;
 	sched_setscheduler(0, SCHED_OTHER, &schedp);
