@@ -27,21 +27,14 @@
 #include "ethercatprint.h"
 #include "ethercatsoe.h"
 
+#include "wago_steppers.h"
+#include "state_machine.h"
+#include "error.h"
+
 #define NSEC_PER_SEC 1000000000
 #define TICK_RATE 100000
 
 
-/* Error Codes */
-#define ERR_SUCCESS 0
-#define ERR_ETH_DEV_FAIL -1
-#define ERR_EC_NO_SLAVES -2
-#define ERR_FAILED_SAFE_OP -3
-#define ERR_FAILED_OP -4
-#define ERR_STATE_MACHINE_STOPPED -5
-#define ERR_CONFIG_FAIL -6
-#define ERR_FAILED_PRE_OP -7
-
-pthread_mutex_t io_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 struct input_msg_t {
 	int quit;
@@ -62,78 +55,10 @@ char IOmap[4096];
 char *eth_dev = "eth0";
 uint32 cycle_time = 1000;
 uint32 move_coord = 0;
-
+ 
 /* wago device configuration */
 const int WAGO_DEVICE_OFFSETS_MOSI[] = {0x0005, 0x0011, 0x001d};
 const int WAGO_DEVICE_OFFSETS_MISO[] = {0x0030, 0x003c, 0x0048};
-
-/* this struct is configured so that the second address is 0 for master out, 1 for master in */
-struct wago_stepper_t *wago_steppers[3][2];
-/* io structures */
-struct PACKED wago_stepper_t {
-	union {
-		uint8 value;
-		struct {
-			uint8 reserved : 5;
-			uint8 mbx_mode : 1;
-			uint8 error : 1; /* this is read only */
-			uint8 reserved2 : 1;
-		} bit;
-	} stat_cont0;
-
-	uint8 reserved;
-	
-	union {
-		struct {
-			uint8 velocity_lbyte;
-			uint8 velocity_hbyte;
-			uint8 acceleration_lbyte;
-			uint8 acceleration_hbyte;
-			uint8 position_lbyte;
-			uint8 position_mbyte;
-			uint8 position_hbyte;
-		} positioning;
-		struct {
-			uint8 opcode;
-			uint8 control;
-			uint8 mail[4];
-			uint8 reserved;
-		} mailbox;
-	} message;
-	
-	
-	uint8 stat_cont3;
-	union {
-		uint8 value;
-		struct {
-			uint8 on_target : 1;
-			uint8 busy : 1;
-			uint8 standstill : 1;
-			uint8 on_speed : 1;
-			uint8 direction : 1;
-			uint8 reference_ok : 1;
-			uint8 precalc_ack : 1;
-			uint8 error : 1;
-		} status_bits;
-
-		struct {
-			uint8 to_be_defined : 8;
-		} control_bits;
-	} stat_cont2;
-	union {
-		uint8 value;
-		struct {
-			uint8 enable : 1;
-			uint8 stop2_n : 1;
-			uint8 start : 1;
-			uint8 m_positioning : 1;
-			uint8 m_program : 1;
-			uint8 m_reference : 1;
-			uint8 m_jog : 1;
-			uint8 m_drive_by_mbx : 1;
-		} bit;
-	} stat_cont1;	
-};
 
 typedef struct PACKED
 {
@@ -266,213 +191,9 @@ void ec_sync(int64 reftime, int64 cycletime, int64 *offsettime)
 	*offsettime = -(delta/100) - (integral/20);
 }
 
-int state_machine()
-{
-#ifdef STATE_MACHINE_MAILBOX
-	enum states {
-		enable_mailbox = 0,
-		enable_mailbox_drive,
-		init2,
-		xxx
-	};
-	static states current_state = enable_mailbox;
-	switch (current_state) {
-	case init:
-		for (int i=0; i<3; i++) {
-			/* control 0 setup */
-		`	wago_steppers[i][0]->stat_cont0.bit.mbx_mode = 1;
-		}
-		current_state = enable_mailbox_drive;
-		break;
-
-	case enable_mailbox_drive:
-		/* control 1 setup */
-		wago_steppers[i][0]->stat_cont1.bit.enable = 1;
-		/* set stop2_n, this must be set to be able to set an operating mode */
-		wago_steppers[i][0]->stat_cont1.bit.stop2_n = 1;
-		wago_steppers[i][0]->stat_cont1.bit.m_drive_by_mbx = 1;
-			
-		wago_steppers[i][0]->message.mailbox.opcode = 0x40;
-		wago_steppers[i][0]->message.mailbox.control = (toggle<<7);
-		wago_steppers[i][0]->message.mailbox.mail[0] = 0x02;
-		wago_steppers[i][0]->message.mailbox.mail[1] = 42;
-		wago_steppers[i][0]->message.mailbox.mail[2] = 42;
-		wago_steppers[i][0]->message.mailbox.mail[3] = 42;
-
-		toggle = !toggle;
-	
-		/* confirm mailbox mode is set */
-		for (int i=0; i<3; i++) {
-			printf("dev %d mailbox mode is: %d\n", i, wago_steppers[i][1]->stat_cont0.bit.mbx_mode);
-		}
-		break;
-	}
-#endif /* STATE_MACHINE_MAILBOX */
-#ifdef STATE_MACHINE_WAGO_PROCESS_IMAGE 
-	enum states {
-		set_terminate_operating_mode = 0,
-		confirm_terminate_operating_mode,
-		set_setup_mode,
-		confirm_setup_mode,
-		set_positioning_mode,
-		confirm_positioning_mode,
-		set_position,
-		check_position,
-		stop
-	};
-	
-	uint16 max_accel = 5000; 	
-	static enum states current_state = set_terminate_operating_mode;
-	uint16 max_vel = 5000;
-	int confirmed;
-
-	switch (current_state) {
-	case set_terminate_operating_mode:
-		printf("terminating existing\n");
-		
-		//printf("term: attempting to lock\n");
-		pthread_mutex_lock(&io_mutex);
-		//printf("term: locked\n");
-		for (int i=0; i<3; i++){
-			wago_steppers[i][0]->stat_cont1.bit.enable = 0;
-			wago_steppers[i][0]->stat_cont1.bit.stop2_n = 0;
-			wago_steppers[i][0]->stat_cont1.bit.start = 0;
-		}
-		pthread_mutex_unlock(&io_mutex);
-		//printf("term: freed\n");
-
-		current_state = confirm_terminate_operating_mode;
-		break;
-	case confirm_terminate_operating_mode:
-		printf("Terminate Operating Mode\n");
-		confirmed = 1;
-		pthread_mutex_lock(&io_mutex);
-		for (int i=0; i<3; i++) {
-			if (wago_steppers[i][1]->stat_cont1.bit.enable != 0) {
-				printf("%d: Enable not yet reset!\n", i);
-				confirmed = 0;
-			}
-			if (wago_steppers[i][1]->stat_cont1.bit.stop2_n != 0) {
-				printf("%d: Stop not yet reset!\n", i);
-				confirmed = 0;
-			}
-			if (wago_steppers[i][1]->stat_cont1.bit.start != 0) {
-				printf("%d: start not yet reset!\n", i);
-				confirmed = 0;
-			}
-	
-		}
-		pthread_mutex_unlock(&io_mutex);
-		if (confirmed) 
-			current_state=set_setup_mode;
-		break;
-	case set_setup_mode:
-		pthread_mutex_lock(&io_mutex);
-		for (int i=0; i<3; i++) {
-			wago_steppers[i][0]->stat_cont1.bit.enable = 1;
-			wago_steppers[i][0]->stat_cont1.bit.stop2_n = 1;
-			wago_steppers[i][0]->stat_cont1.bit.start = 0;
-		}
-		pthread_mutex_unlock(&io_mutex);
-		current_state = confirm_setup_mode;
-		break;
-	case confirm_setup_mode:
-		printf("Setup Mode\n");
-		confirmed = 1;
-		pthread_mutex_lock(&io_mutex);
-		for (int i=0; i<3; i++) {
-			if (wago_steppers[i][1]->stat_cont1.bit.enable != 1) {
-				printf("%d: Trying to set enable to: %d Enable is: %d!\n", i, wago_steppers[i][0]->stat_cont1.bit.enable, wago_steppers[i][1]->stat_cont1.bit.enable);
-				confirmed = 0;
-			}
-			if (wago_steppers[i][1]->stat_cont1.bit.stop2_n != 1) {
-				printf("%d: Trying to set stop to: %d Stop is: %d!\n", i, wago_steppers[i][0]->stat_cont1.bit.stop2_n, wago_steppers[i][1]->stat_cont1.bit.stop2_n);
-				confirmed = 0;
-			}
-			if (wago_steppers[i][1]->stat_cont1.bit.start != 0) {
-				printf("%d: Trying to set start to: %d Start is: %d!\n", i, wago_steppers[i][0]->stat_cont1.bit.start, wago_steppers[i][1]->stat_cont1.bit.start);
-				confirmed = 0;
-			}	
-		}
-		pthread_mutex_unlock(&io_mutex);
-
-		if (confirmed)
-			current_state=set_positioning_mode;
-		break;
-	case set_positioning_mode:
-		pthread_mutex_lock(&io_mutex);
-		for (int i=0; i<3; i++) {
-			wago_steppers[i][0]->stat_cont1.bit.m_positioning = 1;
-		}
-		pthread_mutex_unlock(&io_mutex);
-		current_state = confirm_positioning_mode;
-		break;
-	case confirm_positioning_mode:
-		pthread_mutex_lock(&io_mutex);
-		printf("positioning mode active? s1:%s s2:%s s3:%s\n",
-			(wago_steppers[0][1]->stat_cont1.bit.m_positioning)?"y":"n",
-			(wago_steppers[1][1]->stat_cont1.bit.m_positioning)?"y":"n",	
-			(wago_steppers[2][1]->stat_cont1.bit.m_positioning)?"y":"n"
-		);
-		int all_ready = 1;
-		for (int i=0; i<3; i++) {
-			if (!wago_steppers[i][1]->stat_cont1.bit.m_positioning){
-				all_ready = 0;
-			}
-		}
-		pthread_mutex_unlock(&io_mutex);
-		if (all_ready)	
-			current_state = set_position;
-		break;
-	case set_position:
-		pthread_mutex_lock(&io_mutex);
-		for (int i=0; i<3; i++) {
-			printf("m_positioning? %d\n", wago_steppers[i][1]->stat_cont1.bit.m_positioning);
-			
-			wago_steppers[i][0]->message.positioning.velocity_lbyte = (uint8) ((max_vel>>0)&0xFF);
-			wago_steppers[i][0]->message.positioning.velocity_hbyte = (uint8) ((max_vel>>8)&0xFF);
-
-			wago_steppers[i][0]->message.positioning.acceleration_lbyte = (uint8) ((max_accel>>0)&0xFF);
-			wago_steppers[i][0]->message.positioning.acceleration_hbyte = (uint8) ((max_accel>>8)&0xFF);
-			
-			wago_steppers[i][0]->message.positioning.position_lbyte = (uint8) ((move_coord>>0)&0xFF);
-			wago_steppers[i][0]->message.positioning.position_mbyte = (uint8) ((move_coord>>8)&0xFF);
-			wago_steppers[i][0]->message.positioning.position_hbyte = (uint8) ((move_coord>>16)&0xFF);
-
-			printf("err? %d\n", wago_steppers[i][1]->stat_cont0.bit.error);
-
-			wago_steppers[i][0]->stat_cont1.bit.start = 1;
-		}
-		pthread_mutex_unlock(&io_mutex);
-		current_state = check_position;
-		break;
-	case check_position:
-		pthread_mutex_lock(&io_mutex);
-		if (wago_steppers[0][1]->stat_cont2.status_bits.on_target){
-			printf("Reached destination!\n");
-			current_state = stop;
-		}
-		pthread_mutex_unlock(&io_mutex);
-		break;
-
-	case stop:
-		pthread_mutex_lock(&io_mutex);
-		printf("positioning mode: %d\n", wago_steppers[0][1]->stat_cont1.bit.m_positioning);
-		pthread_mutex_unlock(&io_mutex);
-		return ERR_STATE_MACHINE_STOPPED;
-		break;
-	default:
-		printf("ERROR: should not be in this state\n");
-		break;
-
-	}
-	return 0;
-#endif /* STATE_MACHINE_WAGO_PROCESS_IMAGE */
-}
-
 int ethercat_init_device(char *ifname) {
 	/* open the ethernet device */
-	if (ec_init(ifname) <= 0) {
+	if (ec_init(ifname) < 0) {
 		printf("EtherCAT: Could not initialise device %s\n", ifname);
 		return ERR_ETH_DEV_FAIL;
 	}
@@ -483,19 +204,24 @@ int ethercat_init_device(char *ifname) {
 int ethercat_init_to_pre_op()
 {
 	/* configure mailboxes, this requests pre-op */
-	int ret = ec_config_init(FALSE);
-	if (ret <= 0) {
-		printf("EtherCAT: Failed to configure mailboxes: %d\n", ret);
+	int wkc = ec_config_init(FALSE);
+	/* FIXME: this should check for the correct number of slaves */
+	printf("EtherCAT: Found %d slaves\n", wkc);
+	if (wkc <= 0) {
+		printf("EtherCAT: Failed to configure mailboxes. Got WKC: %d\n", wkc);
 		ec_close();
 		return ERR_CONFIG_FAIL;
 	}
 
 	ec_statecheck(0, EC_STATE_PRE_OP, EC_TIMEOUTSTATE);
-	if (ec_slave[0].state != EC_STATE_PRE_OP) {
+	/*if (ec_slave[0].state != EC_STATE_PRE_OP) {
 		printf("EtherCAT: Not all devices reached pre op!\n");
+		for (int i=0; i< 4; i++) {
+			printf("state%d: %d\n", i, ec_slave[i].state);
+		}
 		ec_close();
 		return ERR_FAILED_PRE_OP;
-	}
+	}*/
 	return ERR_SUCCESS;
 }
 
@@ -614,16 +340,16 @@ void ethercat_thread(void * ptr)//(struct input_msg_t *input_msg)
 	if (ethercat_init_to_pre_op() < 0) return;
 	printf("EtherCAT: Slaves are in pre-op.\n");
 
-/*	if (ethercat_pre_op_to_safe_op() < 0) return;
-	printf("EtherCAT: Slaves are in safe-op\n");*/
+	if (ethercat_pre_op_to_safe_op() < 0) return;
+	printf("EtherCAT: Slaves are in safe-op\n");
 
 	/* use distributed clocks */
 //	ec_configdc();
 
-/*	if (ethercat_safe_op_to_op() < 0) return;
-	printf("EtherCAT: Slaves are in op\n");*/
+	if (ethercat_safe_op_to_op() < 0) return;
+	printf("EtherCAT: Slaves are in op\n");
 //	ec_readstate();
-	read_soe_info(1, 0);
+//	read_soe_info(1, 0);
 
 	struct timespec next_run;
 	clock_gettime(CLOCK_REALTIME, &next_run);
@@ -632,8 +358,8 @@ void ethercat_thread(void * ptr)//(struct input_msg_t *input_msg)
 
 	for (int i=0; i<3; i++)
 	{
-		wago_steppers[i][0] = (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MOSI[i]];
-		wago_steppers[i][1] = (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MISO[i]];
+		wago_steppers[i][WAGO_OUTPUT_SPACE] = (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MOSI[i]];
+		wago_steppers[i][WAGO_INPUT_SPACE] = (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MISO[i]];
 	}
 	/*wago_steppers = { 
 		{ (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MOSI[0]], (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MISO[0]] },
@@ -641,7 +367,7 @@ void ethercat_thread(void * ptr)//(struct input_msg_t *input_msg)
 		{ (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MOSI[2]], (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MISO[2]] }
 	};*/
 
-	input_msg->quit = 1;
+	input_msg->quit = 0;
 
 	while (input_msg->quit == 0) {
 		/* check if timer has not elapsed */
@@ -819,7 +545,7 @@ int main(int argc, char *argv[])
 	while (input_msg.quit == 0) {
 		/* we're ready to run! */
 		usleep(500000);
-		//if (state_machine() == ERR_STATE_MACHINE_STOPPED) break;
+		if (state_machine() == ERR_STATE_MACHINE_STOPPED) break;
 	}
 
 	/* FIXME maybe join thread? */

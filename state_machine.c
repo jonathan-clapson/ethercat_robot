@@ -9,17 +9,18 @@
 #else /* Linux - SOEM Includes */
 #include <stdint.h>
 #include <stdio.h>
+#include "error.h"
 #endif
 
 #include "state_machine.h"
 #include "wago_steppers.h"
 
-struct wago_stepper_t *wago_steppers[3][2];
+struct wago_stepper_t *wago_steppers[WAGO_NUM_STEPPERS][WAGO_LENGTH_SPACE];
 
 #ifdef _WIN32
 void state_machine(CTcTrace &m_Trace) {
 #else
-void state_machine() {
+int state_machine() {
 #endif
 	enum states {
 		set_terminate_operating_mode = 0,
@@ -35,8 +36,7 @@ void state_machine() {
 	
 	static enum states current_state = set_terminate_operating_mode;
 	static enum states last_state = stop;
-	uint32_t move_coord = 1000;
-
+	uint32_t move_coord = 64*5*200; /* 64 microsteps * 5:1 gear ratio * 360degrees/1.8degreesperstep = 1 full rotation */
 	int confirmed;
 
 	switch (current_state) {
@@ -100,20 +100,32 @@ void state_machine() {
 		for (int i=0; i<3; i++) {
 			if (wago_confirm_setup_mode(wago_steppers, i) < 0) {
 				confirmed = 0;
-				break;
+//				break;
 			}
-			/*if (wago_steppers[i][1]->stat_cont1.bit.enable != 1) {
-				printf("%d: Trying to set enable to: %d Enable is: %d!\n", i, wago_steppers[i][0]->stat_cont1.bit.enable, wago_steppers[i][1]->stat_cont1.bit.enable);
+			if (wago_steppers[i][WAGO_INPUT_SPACE]->stat_cont1.bit.enable != 1) {
+				printf("%d: Trying to set enable to: %d Enable is: %d!\n", 
+					i, 
+					wago_steppers[i][WAGO_OUTPUT_SPACE]->stat_cont1.bit.enable, 
+					wago_steppers[WAGO_INPUT_SPACE][1]->stat_cont1.bit.enable
+				);
 				confirmed = 0;
 			}
-			if (wago_steppers[i][1]->stat_cont1.bit.stop2_n != 1) {
-				printf("%d: Trying to set stop to: %d Stop is: %d!\n", i, wago_steppers[i][0]->stat_cont1.bit.stop2_n, wago_steppers[i][1]->stat_cont1.bit.stop2_n);
+			if (wago_steppers[i][WAGO_INPUT_SPACE]->stat_cont1.bit.stop2_n != 1) {
+				printf("%d: Trying to set stop to: %d Stop is: %d!\n", 
+					i, 
+					wago_steppers[i][WAGO_OUTPUT_SPACE]->stat_cont1.bit.stop2_n, 
+					wago_steppers[i][WAGO_INPUT_SPACE]->stat_cont1.bit.stop2_n
+				);
 				confirmed = 0;
 			}
-			if (wago_steppers[i][1]->stat_cont1.bit.start != 0) {
-				printf("%d: Trying to set start to: %d Start is: %d!\n", i, wago_steppers[i][0]->stat_cont1.bit.start, wago_steppers[i][1]->stat_cont1.bit.start);
+			if (wago_steppers[i][WAGO_INPUT_SPACE]->stat_cont1.bit.start != 0) {
+				printf("%d: Trying to set start to: %d Start is: %d!\n", 
+					i, 
+					wago_steppers[i][WAGO_OUTPUT_SPACE]->stat_cont1.bit.start, 
+					wago_steppers[i][WAGO_INPUT_SPACE]->stat_cont1.bit.start
+				);
 				confirmed = 0;
-			}*/
+			}
 		}
 		last_state = confirm_setup_mode;
 		if (confirmed)
@@ -179,7 +191,9 @@ void state_machine() {
 		printf("positioning mode: %d\n", wago_steppers[0][1]->stat_cont1.bit.m_positioning);
 
 		last_state = stop;
-		//return ERR_STATE_MACHINE_STOPPED;
+		#ifndef _WIN32
+		return ERR_STATE_MACHINE_STOPPED;
+		#endif
 		break;
 	default:
 		printf("ERROR: should not be in this state\n");

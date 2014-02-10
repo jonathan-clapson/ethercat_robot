@@ -27,6 +27,11 @@ enum {
 	WAGO_LENGTH_SPACE
 };
 
+#ifndef _WIN32
+#include <pthread.h>
+extern pthread_mutex_t io_mutex;
+#endif
+
 /* io structures */
 #ifdef _WIN32
 #include "stdint.h"
@@ -103,7 +108,6 @@ struct __attribute__((__packed__)) wago_stepper_t {
 #ifdef _WIN32
 __pragma( pack(pop) )
 #endif /* _WIN32 */ 
-
 
 int wago_terminate_mode(struct wago_stepper_t *wago_steppers[WAGO_NUM_STEPPERS][WAGO_LENGTH_SPACE], int device);
 int wago_confirm_terminate_mode(struct wago_stepper_t *wago_steppers[WAGO_NUM_STEPPERS][WAGO_LENGTH_SPACE], int device);

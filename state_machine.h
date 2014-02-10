@@ -7,7 +7,7 @@
 #ifdef _WIN32
 void state_machine(CTcTrace &m_Trace);
 #else
-void state_machine();
+int state_machine();
 #endif
 
-extern struct wago_stepper_t *wago_steppers[3][2];
+extern struct wago_stepper_t *wago_steppers[WAGO_NUM_STEPPERS][WAGO_LENGTH_SPACE];
