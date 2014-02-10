@@ -1,3 +1,12 @@
+/** \file
+ * \brief Main program for the University of Auckland delta robot in Industrial Informatics
+ *
+ * This program is used to connect to a delta robot 
+ *
+ * Authors:
+ * Jonathan Clapson (NOV 2013-FEB 2014)
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -16,6 +25,7 @@
 #include "ethercatcoe.h"
 #include "ethercatdc.h"
 #include "ethercatprint.h"
+#include "ethercatsoe.h"
 
 #define NSEC_PER_SEC 1000000000
 #define TICK_RATE 100000
@@ -28,6 +38,8 @@
 #define ERR_FAILED_SAFE_OP -3
 #define ERR_FAILED_OP -4
 #define ERR_STATE_MACHINE_STOPPED -5
+#define ERR_CONFIG_FAIL -6
+#define ERR_FAILED_PRE_OP -7
 
 pthread_mutex_t io_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -148,6 +160,58 @@ in_EK1002_streamt *in_EK1002;
 int streampos; //used uninitialised?!
 int16 stream1[MAXSTREAM];
 int16 stream2[MAXSTREAM];
+
+void read_soe_info(int slave, int drive_no)
+{
+	int o_size;
+	int i_size;
+	
+/*	int ret = ec_readIDNmap(1, &o_size, &i_size);
+	if (ret > 0)
+		printf("Osize: %d, Isize: %d\n", o_size, i_size);
+	else
+		printf("soe info failed\n");*/
+
+	unsigned char param_buffer[2] = {0x00,0x07};
+	int param_buffer_size = sizeof(param_buffer);
+	int wkc = ec_SoEwrite(1, 0, EC_SOE_VALUE_B, 15, param_buffer_size, param_buffer, EC_TIMEOUTRXM);
+	printf("WKC is: %d\n", wkc);
+}
+
+void read_soe_info_simp(int slave, int drive_no)
+{
+	unsigned char param_buffer[20] = {0xFF};
+	int param_buffer_size = sizeof(param_buffer);
+	int wkc = ec_SoEread(1, 0, EC_SOE_DATASTATE_B, 1, &param_buffer_size, param_buffer, EC_TIMEOUTRXM);
+	printf("WKC is: %d\n", wkc);
+}
+
+void read_soe_info2(int slave, int drive_no) 
+{
+	unsigned char param_buffer[500] = {0};
+	int param_buffer_size = sizeof(param_buffer);
+
+	int element_flags = EC_SOE_DATASTATE_B | EC_SOE_NAME_B | EC_SOE_ATTRIBUTE_B | EC_SOE_UNIT_B | EC_SOE_MIN_B | EC_SOE_MAX_B | EC_SOE_VALUE_B;
+
+	unsigned char read_list[] = {1, 2, 15, 16, 24, 32, 91, 100, 101, 106, 107, 109, 111, 113, 136, 137, 201, 204};
+
+	for (unsigned char i=0; i<sizeof(read_list); i++) {
+		printf("Retrieving %d", read_list[i]);
+		int wkc = ec_SoEread(1, 1, element_flags, read_list[i], &param_buffer_size, param_buffer, EC_TIMEOUTRXM);
+		printf("\tWKC: %d\t", wkc);
+
+		for (int j=0; (j<param_buffer_size) && j<sizeof(param_buffer); j++) {
+			printf("byte%d: %u\t", j, param_buffer[j]);
+		}
+		printf("\n");
+	}
+}
+
+void init_servo(int slave, int drive_no) 
+{
+
+//	int wkc = ec_SoEwrite(slave, drive_no, 
+}
 
 void add_timespec(struct timespec *ts, int64 addtime)
 {
@@ -406,18 +470,42 @@ int state_machine()
 #endif /* STATE_MACHINE_WAGO_PROCESS_IMAGE */
 }
 
+int ethercat_init_device(char *ifname) {
+	/* open the ethernet device */
+	if (ec_init(ifname) <= 0) {
+		printf("EtherCAT: Could not initialise device %s\n", ifname);
+		return ERR_ETH_DEV_FAIL;
+	}
+	return ERR_SUCCESS;
+}
+
 /* Bring slaves from init to pre-op */
-int ethercat_init_to_pre_op(char *ifname)
+int ethercat_init_to_pre_op()
 {
-	/* initialise SOEM, bind socket to ifname */
-	return (ec_init(ifname)>0) ? ERR_SUCCESS : ERR_ETH_DEV_FAIL;
+	/* configure mailboxes, this requests pre-op */
+	int ret = ec_config_init(FALSE);
+	if (ret <= 0) {
+		printf("EtherCAT: Failed to configure mailboxes: %d\n", ret);
+		ec_close();
+		return ERR_CONFIG_FAIL;
+	}
+
+	ec_statecheck(0, EC_STATE_PRE_OP, EC_TIMEOUTSTATE);
+	if (ec_slave[0].state != EC_STATE_PRE_OP) {
+		printf("EtherCAT: Not all devices reached pre op!\n");
+		ec_close();
+		return ERR_FAILED_PRE_OP;
+	}
+	return ERR_SUCCESS;
 }
 
 /* Bring slaves into safe-op */
 int ethercat_pre_op_to_safe_op()
 {
+
 	/* find slaves and automatically configure */
-	if (ec_config(FALSE, &IOmap) <= 0 ) {
+	if (ec_config_map(&IOmap) <= 0 ) {
+		printf("EtherCAT: Failed to map IOmap\n");
 		ec_close();
 		return ERR_EC_NO_SLAVES;
 	}
@@ -432,18 +520,19 @@ int ethercat_pre_op_to_safe_op()
 	/* wait for all slaves to reach SAFE_OP state */
 	ec_statecheck(0, EC_STATE_SAFE_OP, EC_TIMEOUTSTATE * 3);
 	if (ec_slave[0].state != EC_STATE_SAFE_OP) {
-		printf("Not all slaves reached safe operational state\n");
+		printf("EtherCAT: Not all slaves reached safe operational state\n");
 		ec_readstate();
 		for (int i=1; i<=ec_slavecount; i++)
 		{
 			if (ec_slave[i].state != EC_STATE_SAFE_OP)
 			{
-				printf("Slave %d State=%2x StatusCode=%4x : %s\n", i, ec_slave[i].state, ec_slave[i].ALstatuscode, ec_ALstatuscode2string(ec_slave[i].ALstatuscode));
+				printf("EtherCAT: Slave %d State=%2x StatusCode=%4x : %s\n", i, ec_slave[i].state, ec_slave[i].ALstatuscode, ec_ALstatuscode2string(ec_slave[i].ALstatuscode));
 			}
 		}
 		return ERR_FAILED_SAFE_OP;
 	}
 
+	return ERR_SUCCESS;
 }
 
 /* Bring slaves back to pre_op */
@@ -451,6 +540,8 @@ int ethercat_safe_op_to_pre_op() {
 	ec_slave[0].state = EC_STATE_PRE_OP;
 	ec_writestate(0);
 	ec_statecheck(0, EC_STATE_PRE_OP, EC_TIMEOUTSTATE);
+
+	return ERR_SUCCESS;
 }
 
 /* Bring slaves into op */
@@ -508,6 +599,7 @@ int ethercat_op_to_safe_op(){
 		ec_receive_processdata(EtherCAT_TIMEOUT);
 	}
 
+	return ERR_SUCCESS;
 }
 
 void ethercat_thread(void * ptr)//(struct input_msg_t *input_msg)
@@ -516,27 +608,22 @@ void ethercat_thread(void * ptr)//(struct input_msg_t *input_msg)
 
 	struct input_msg_t *input_msg = (struct input_msg_t *) ptr;
 
-	if (ethercat_init_to_pre_op(eth_dev) < 0) {
-		printf("EtherCAT: Can't open device %s\n", eth_dev);
-		return;
-	}
-	printf("EtherCAT: Initialised on %s.\n", eth_dev);
+	if (ethercat_init_device(eth_dev) < 0) return;
+	printf("EtherCAT: Initialised device: %s\n", eth_dev);
 
+	if (ethercat_init_to_pre_op() < 0) return;
+	printf("EtherCAT: Slaves are in pre-op.\n");
 
-	if (ethercat_pre_op_to_safe_op() < 0) {
-		printf("No slaves found\n");
-		return;
-	}
-	printf("EtherCAT: Slaves are in safe-op\n");
+/*	if (ethercat_pre_op_to_safe_op() < 0) return;
+	printf("EtherCAT: Slaves are in safe-op\n");*/
+
 	/* use distributed clocks */
-	ec_configdc();
+//	ec_configdc();
 
-	if (ethercat_safe_op_to_op() < 0) {
-		printf("EtherCAT: Failed to bring slaves into operational state\n");
-		return;
-	}
-	printf("EtherCAT: Slaves are in op\n");
+/*	if (ethercat_safe_op_to_op() < 0) return;
+	printf("EtherCAT: Slaves are in op\n");*/
 //	ec_readstate();
+	read_soe_info(1, 0);
 
 	struct timespec next_run;
 	clock_gettime(CLOCK_REALTIME, &next_run);
@@ -553,6 +640,8 @@ void ethercat_thread(void * ptr)//(struct input_msg_t *input_msg)
 	   	{ (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MOSI[1]], (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MISO[1]] },
 		{ (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MOSI[2]], (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MISO[2]] }
 	};*/
+
+	input_msg->quit = 1;
 
 	while (input_msg->quit == 0) {
 		/* check if timer has not elapsed */
@@ -583,13 +672,14 @@ void ethercat_thread(void * ptr)//(struct input_msg_t *input_msg)
 	}
 
 	/* bring the device back to pre-op so it is safe to disconnect */
-	ethercat_op_to_safe_op();
-	ethercat_safe_op_to_pre_op();
+//	ethercat_op_to_safe_op();
+//	ethercat_safe_op_to_pre_op();
 
 	ec_close();	
 }
 
-void ethercat_thread7( void *ptr )
+/* this function is the slightly modified original code from the ebox example. I think the pthread_cond_timedwait is a better method of syncing than I'm currently using, should switch to this when possible */
+void ethercat_thread_orig( void *ptr )
 {
 	struct timespec ts;
 	struct timeval tp;
@@ -612,12 +702,6 @@ void ethercat_thread7( void *ptr )
 
 	printf("RealTime EtherCAT Thread started.\n");
 	
-/*	if (ethercat_init_to_pre_op(eth_dev) < 0) {
-		printf("EtherCAT: Can't open device %s\n", eth_dev);
-		return;
-	}
-	printf("EtherCAT: Initialised on %s.\n", eth_dev);*/
-
 	while (1) {
 		/* calculate next cycle start */
 		add_timespec(&ts, cycletime + toff);
@@ -627,8 +711,8 @@ void ethercat_thread7( void *ptr )
 
 		rc = gettimeofday(&tp, NULL);
 
-//		ec_send_processdata();
-//		ec_receive_processdata(EtherCAT_TIMEOUT); //1 second timeout, this should probably be decreased?
+		ec_send_processdata();
+		ec_receive_processdata(EtherCAT_TIMEOUT); //1 second timeout, this should probably be decreased?
 
 		//not needed?
 		cycle_count++;
@@ -730,34 +814,12 @@ int main(int argc, char *argv[])
 	int counter = 0;
 	sleep(2);
 
-	struct timespec next_run;
-	clock_gettime(CLOCK_REALTIME, &next_run);
-	struct timespec current_time;
-	struct timespec result;
 
-	/* FIXME: clean up triple timer thing, its just stupid */
+	/* Control loop */
 	while (input_msg.quit == 0) {
-		/* check if timer has not elapsed */
-/*		clock_gettime(CLOCK_REALTIME, &current_time);
-		if ( compare_timespec(current_time, next_run) == -1 ){
-			usleep(10000);
-			continue;
-		}*/
-#ifdef SHOW_TPS
-		int valid = subtract_timespec(current_time, next_run, &result);
-		printf("valid? %d. difference is %d sec and %ld nsec\n", valid, result.tv_sec, result.tv_nsec);
-#endif /* SHOW_TPS */
-
-		/* timer has elapsed update expiration time */
-	/*	memcpy(&next_run, &current_time, sizeof(struct timespec));
-		add_timespec(&next_run, TICK_RATE);*/ /* add ns to current time */
-		
 		/* we're ready to run! */
-//		static int toggle = 0;
-//		if (counter > 1000) {
 		usleep(500000);
-			if (state_machine() == ERR_STATE_MACHINE_STOPPED) break;
-//		}
+		//if (state_machine() == ERR_STATE_MACHINE_STOPPED) break;
 	}
 
 	/* FIXME maybe join thread? */

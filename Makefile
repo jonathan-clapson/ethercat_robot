@@ -8,7 +8,7 @@ CFLAGS =
 APPNAME = input_test 
 
 all: 
-	gcc $(CFLAGS) --std=gnu99 -o input_test -I$(INCDIRS) -I$(OSALDIR) -I$(OSHWDIR) -L$(LIBDIRS) input_test.c -lsoem -losal -loshw -lpthread
+	gcc $(CFLAGS) --std=gnu99 -o input_test -I$(INCDIRS) -I$(OSALDIR) -I$(OSHWDIR) -L$(LIBDIRS) input_test.c state_machine.c wago_steppers.c -lsoem -losal -loshw -lpthread
 
 debug:
 	gcc $(CFLAGS) -g --std=gnu99 -o input_test -I$(INCDIRS) -I$(OSALDIR) -I$(OSHWDIR) -L$(LIBDIRS) input_test.c -lsoem -losal -loshw -lpthread
