@@ -1,5 +1,5 @@
 /** \file
- * this file defines the functions used for accessing the stepper process image
+ * \brief this file defines the functions used for accessing the stepper process image
  * 
  * All functions in this file need sanity checking on the device number
  * \warning Building this file in visual studio requires setting the /TP build option 

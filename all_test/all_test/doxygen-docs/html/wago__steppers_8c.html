@@ -92,6 +92,9 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 <div class="title">wago_steppers.c File Reference</div>  </div>
 </div><!--header-->
 <div class="contents">
+
+<p>this file defines the functions used for accessing the stepper process image  
+<a href="#details">More...</a></p>
 <div class="textblock"><code>#include &quot;<a class="el" href="wago__steppers_8h_source.html">wago_steppers.h</a>&quot;</code><br/>
 </div>
 <p><a href="wago__steppers_8c_source.html">Go to the source code of this file.</a></p>
@@ -119,7 +122,7 @@ Variables</h2></td></tr>
 <tr class="memitem:af7e1650f19fc5b13c160291618f21a29"><td class="memItemLeft" align="right" valign="top">pthread_mutex_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="wago__steppers_8c.html#af7e1650f19fc5b13c160291618f21a29">io_mutex</a> = PTHREAD_MUTEX_INITIALIZER</td></tr>
 </table>
 <a name="details" id="details"></a><h2>Detailed Description</h2>
-<div class="textblock"><p>this file defines the functions used for accessing the stepper process image</p>
+<div class="textblock"><p>this file defines the functions used for accessing the stepper process image </p>
 <p>All functions in this file need sanity checking on the device number </p>
 <dl class="section warning"><dt>Warning</dt><dd>Building this file in visual studio requires setting the /TP build option (Project-&gt;Properties-&gt;c/c++-&gt;commandline-&gt;additional options) This forces this file to be compiled as c++ as otherwise a beckhoff header gets pulled in and treated as c which causes a c++ struct (method overloads) to fail to compile </dd></dl>
 
@@ -553,7 +556,7 @@ Variables</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Feb 12 2014 11:05:29 for SOEM+TwinCAT3 by &#160;<a href="http://www.doxygen.org/index.html">
+Generated on Wed Feb 12 2014 11:08:09 for SOEM+TwinCAT3 by &#160;<a href="http://www.doxygen.org/index.html">
 <img class="footer" src="doxygen.png" alt="doxygen"/>
 </a> 1.8.1.2
 </small></address>
