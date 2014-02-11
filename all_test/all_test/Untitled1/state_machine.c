@@ -5,7 +5,7 @@
  * (Project->Properties->c/c++->commandline->additional options)
  * This forces this file to be compiled as c++ as otherwise a beckhoff header gets pulled in
  * and treated as c which causes a c++ struct (method overloads) to fail to compile
- * This file is used both in SOEM and TwinCAT3 (which is why there are #ifdef's everywhere :S
+ * This file is used both in SOEM and TwinCAT3 (which is why there are #ifdef's everywhere :S The ifdefs should really be detecting visual studio vs gcc rather than _win32 and linux though. This needs to be fixed.
  *
  */
 

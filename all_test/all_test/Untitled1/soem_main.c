@@ -1,10 +1,7 @@
 /** \file
  * \brief Main program for the University of Auckland delta robot in Industrial Informatics
  *
- * This program is used to connect to a delta robot 
- *
- * Authors:
- * Jonathan Clapson (NOV 2013-FEB 2014)
+ * This program is used to connect to and control a delta robot 
  */
 
 #include <stdio.h>
@@ -39,6 +36,17 @@ struct input_msg_t {
 	int quit;
 };
 
+/**
+ * Input handling function, run by input handling thread
+ *
+ * This function handles commandline input. It could be used at a later time to 
+ * facilitate control of the EtherCAT devices using the keyboard. Right now it is only
+ * used to signal to the main program that we would like to quit. 
+ * \warning don't modify this function so that it updates the iomap. If you want to do 
+ * keyboard control, the far better way to implement it is to send events, glibc may 
+ * be helpful for this.
+ * @param[in] ptr A pointer to the input_msg_t used to signal exit to the other threads
+ */
 void check_input(void *ptr)
 {
 	struct input_msg_t *input_msg = (struct input_msg_t *) ptr;
@@ -62,6 +70,15 @@ const int WAGO_DEVICE_OFFSETS_MISO[] = {0x0030, 0x003c, 0x0048};
 
 uint32_t cycle_count = 0;
 
+/**
+ * Function for testing writing of an SoE parameter.
+ *
+ * This function tests writing an SoE parameter. It does not work correctly. Need to  
+ * examine wireshark logs of TwinCAT3 software and this to check whats different. Only 
+ * need to test with TwinCATs inbuilt motor testing rather than actual code.
+ * @param[in]	slave The slave number to write to. (currently not used)
+ * @param[in]	drive_no Which drive on the slave we're writing to. (currently not used)
+ */
 void read_soe_info(int slave, int drive_no)
 {
 	int o_size;
@@ -79,6 +96,15 @@ void read_soe_info(int slave, int drive_no)
 	printf("WKC is: %d\n", wkc);
 }
 
+/**
+ * Function for testing reading of an SoE parameter.
+ *
+ * This function tests reading an SoE parameter. It does not work correctly. Need to  
+ * examine wireshark logs of TwinCAT3 software and this to check whats different. Only 
+ * need to test with TwinCATs inbuilt motor testing rather than actual code.
+ * @param[in]	slave The slave number to write to. (currently not used)
+ * @param[in]	drive_no Which drive on the slave we're writing to. (currently not used)
+ */
 void read_soe_info_simp(int slave, int drive_no)
 {
 	unsigned char param_buffer[20] = {0xFF};
@@ -87,6 +113,19 @@ void read_soe_info_simp(int slave, int drive_no)
 	printf("WKC is: %d\n", wkc);
 }
 
+/**
+ * Function for testing reading of an SoE parameter.
+ *
+ * This function tests reading an SoE parameter. It does not work correctly. Need to  
+ * examine wireshark logs of TwinCAT3 software and this to check whats different. Only 
+ * need to test with TwinCATs inbuilt motor testing rather than actual code. 
+ * This is an idea for how to deal with setting up and verifying startup parameters.
+ * (use two arrays, one to hold parameter number, one to hold data, then can just loop 
+ * through), an array of struct is probably better, struct holding both param and 
+ * value.
+ * @param[in]	slave The slave number to write to. (currently not used)
+ * @param[in]	drive_no Which drive on the slave we're writing to. (currently not used)
+ */
 void read_soe_info2(int slave, int drive_no) 
 {
 	unsigned char param_buffer[500] = {0};
@@ -108,12 +147,13 @@ void read_soe_info2(int slave, int drive_no)
 	}
 }
 
-void init_servo(int slave, int drive_no) 
-{
-
-//	int wkc = ec_SoEwrite(slave, drive_no, 
-}
-
+/**
+ * adds an amount of nanoseconds to a timespec
+ *
+ * Adds addtime (units nanoseconds) to timespec
+ * @param[in,out]	ts timespec to add nanoseconds to
+ * @param[in]		addtime number of nanoseconds to add
+ */
 void add_timespec(struct timespec *ts, int64 addtime)
 {
 	ts->tv_sec += addtime / NSEC_PER_SEC;
@@ -124,19 +164,41 @@ void add_timespec(struct timespec *ts, int64 addtime)
 	}
 }
 
+#define TIMESPEC_LESS -1
+#define TIMESPEC_GREATER 1
+#define TIMESPEC_EQUAL 0
+/**
+ * Compares timespecs for greater than, less than and equality
+ *
+ * This function takes two timespecs and compares returning greather than, less than, or equality
+ * @param[in]	ts1 First timespec
+ * @param[in]	ts2 Second timespec	
+ * @return Returns TIMESPEC_LESS when ts1 is less than ts2
+ * TIMESPEC_GREATER when ts1 is greater than ts2
+ * TIMESPEC_EQUAL when ts1 is equal to ts2
+ */
 int compare_timespec(struct timespec ts1, struct timespec ts2)
 {
 	if (ts1.tv_sec < ts2.tv_sec)
-		return -1;
+		return TIMESPEC_LESS;
 	if (ts1.tv_sec > ts2.tv_sec)
-		return 1;
+		return TIMESPEC_GREATER;
 	if (ts1.tv_nsec < ts2.tv_nsec)
-		return -1;
+		return TIMESPEC_LESS;
 	if (ts1.tv_nsec > ts2.tv_nsec)
-		return 1;
-	return 0;
+		return TIMESPEC_GREATER;
+	return TIMESPEC_EQUAL;
 }
 
+/**
+ * Subtracts two timespec
+ *
+ * Subtract ts2 from ts1
+ * @param[in]	ts1 First timespec
+ * @param[in]	ts2 Second timespec	
+ * @param[out]	result difference in time as a timespec
+ * @return Returns 0
+ */
 int subtract_timespec(struct timespec ts1, struct timespec ts2, struct timespec *result)
 {
 	if ( (ts1.tv_sec < ts2.tv_sec) || ( (ts1.tv_sec == ts2.tv_sec) && (ts1.tv_nsec < ts2.tv_nsec) ) ) {
@@ -154,7 +216,14 @@ int subtract_timespec(struct timespec ts1, struct timespec ts2, struct timespec 
 	return 0;
 }
 
-/* PI calculation to get linux time synced to Distributed Clock time */
+/**
+ * PI calculation to get linux time synced to Distributed Clock time
+ *
+ * This was taken from the SOEM ebox example. I'm not entirely sure what it does.
+ * @param[in]	reftime some sort of reference time?
+ * @param[in]	cycletime the period of a cycle, probably in nanoseconds
+ * @param[out]	offsettime maybe an amount of time to add or remove from next cycle?
+ */
 void ec_sync(int64 reftime, int64 cycletime, int64 *offsettime)
 {
 	static int64 integral = 0;
@@ -167,6 +236,12 @@ void ec_sync(int64 reftime, int64 cycletime, int64 *offsettime)
 	*offsettime = -(delta/100) - (integral/20);
 }
 
+/**
+ * Initialises the Ethernet connectioon to use for EtherCAT communications
+ *
+ * @param[in]	ifname The interface name to use, ie. eth0
+ * @return ERR_SUCCESS on success, ERR_ETH_DEV_FAIL on failure.
+ */
 int ethercat_init_device(char *ifname) {
 	/* open the ethernet device */
 	if (ec_init(ifname) < 0) {
@@ -176,7 +251,12 @@ int ethercat_init_device(char *ifname) {
 	return ERR_SUCCESS;
 }
 
-/* Bring slaves from init to pre-op */
+/**
+ * Bring slaves from init to pre-op
+ *
+ * Configure EtherCAT modules and brings them to pre-op.
+ * @return Returns ERR_SUCCESS on success, ERR_CONFIG_FAIL if mailboxes could not be configured, ERR_FAILED_PRE_OP if all slaves could not be brought to pre-op state
+ */
 int ethercat_init_to_pre_op()
 {
 	/* configure mailboxes, this requests pre-op */
@@ -202,7 +282,12 @@ int ethercat_init_to_pre_op()
 	return ERR_SUCCESS;
 }
 
-/* Bring slaves into safe-op */
+/**
+ * Bring slaves into safe-op
+ *
+ * Give SOEM access to the I/O map and bring devices into safe-op
+ * @return ERR_SUCCESS on success, ERR_EC_NO_SLAVES on failure to map slaves into io map (this error name should probably change...), ERR_FAILED_SAFE_OP if all slaves could not be brought into safe-op state.
+ */
 int ethercat_pre_op_to_safe_op()
 {
 
@@ -238,7 +323,11 @@ int ethercat_pre_op_to_safe_op()
 	return ERR_SUCCESS;
 }
 
-/* Bring slaves back to pre_op */
+/**
+ * Bring slaves back to pre-op
+ *
+ * @return Returns ERR_SUCCESS this needs to be updated to check it worked and return an error if it didnt.
+ */
 int ethercat_safe_op_to_pre_op() {
 	ec_slave[0].state = EC_STATE_PRE_OP;
 	ec_writestate(0);
@@ -247,7 +336,11 @@ int ethercat_safe_op_to_pre_op() {
 	return ERR_SUCCESS;
 }
 
-/* Bring slaves into op */
+/**
+ * Bring slaves into operational state
+ *
+ * @return Returns ERR_SUCCESS on success, ERR_FAILED_OP on failure to bring all slaves into operational state
+ */
 int ethercat_safe_op_to_op()
 {
 	ec_slave[0].state = EC_STATE_OPERATIONAL;		
@@ -267,7 +360,11 @@ int ethercat_safe_op_to_op()
 	return ERR_SUCCESS;
 }
 
-/* Bring slaves back to safe op */
+/**
+ * Brings slave back to safe-op
+ *
+ * @return ERR_SUCCESS. This function needs to be updated to detect problems
+ */
 int ethercat_op_to_safe_op(){
 
 	struct timespec next_run;
@@ -300,7 +397,15 @@ int ethercat_op_to_safe_op(){
 	return ERR_SUCCESS;
 }
 
-void ethercat_thread(void * ptr)//(struct input_msg_t *input_msg)
+/**
+ * Ethercat update thread
+ *
+ * Handles the Initialisation and (should handle) maintainance of EtherCAT network.
+ * Updates the I/O map at specific timing intervals. This needs to happen at specific 
+ * intervals or the slaves will enter error states.
+ * @param[in]	ptr a reference to the structure which keeps track of whether the program should exit (type is input_msg_t).
+ */
+void ethercat_thread(void * ptr)
 {
 	printf("Starting input_test\n");
 
@@ -315,7 +420,7 @@ void ethercat_thread(void * ptr)//(struct input_msg_t *input_msg)
 	if (ethercat_pre_op_to_safe_op() < 0) return;
 	printf("EtherCAT: Slaves are in safe-op\n");
 
-	/* use distributed clocks */
+	/* FIXME: use distributed clocks */
 	/* I've read distributed clocks are required to use the AX5000 */
 //	ec_configdc();
 
@@ -329,7 +434,7 @@ void ethercat_thread(void * ptr)//(struct input_msg_t *input_msg)
 	struct timespec current_time;
 	struct timespec result;
 
-/* FIXME: this should be updated to be detected automatically, theres no reason other than laziness to do it this way */
+	/* FIXME: this should be updated to be detected automatically, theres no reason other than laziness to do it this way */
 	for (int i=0; i<3; i++)
 	{
 		wago_steppers[i][WAGO_OUTPUT_SPACE] = (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MOSI[i]];
@@ -340,11 +445,12 @@ void ethercat_thread(void * ptr)//(struct input_msg_t *input_msg)
 	input_msg->quit = 0;
 
 	while (input_msg->quit == 0) {
+		/* FIXME: this timing should probably be changed to use pthread_cond_timedwait like the SOEM ebox example does. pthread_cond_timedwait has the advantage of built in timing error detection */
 		/* check if timer has not elapsed */
 		clock_gettime(CLOCK_REALTIME, &current_time);
 		/* FIXME I think print statements significantly slow this down? should test at some point */	   
 		if ( compare_timespec(current_time, next_run) == -1 ){
-			/* FIXME should there be a usleep here to avoid starvation of other thread? */
+			/* FIXME: should there be a usleep here to avoid starvation of other thread? */
 			continue;
 		}
 
@@ -376,57 +482,23 @@ void ethercat_thread(void * ptr)//(struct input_msg_t *input_msg)
 	ec_close();	
 }
 
-/* this function is the slightly modified original code from the ebox example. I think the pthread_cond_timedwait is a better method of syncing than I'm currently using, should switch to this when possible */
-void ethercat_thread_orig( void *ptr )
-{
-	struct timespec ts;
-	struct timeval tp;
-	int rc;
-	int ht;
-	int pcounter = 0;
-	int64 cycletime = *(int*) ptr * 1000; /* cycletime in ns */
-
-	pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
-	pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
-	rc = pthread_mutex_lock(&mutex);
-	rc = gettimeofday(&tp, NULL);
-
-	/* Convert from timeval to timespec */
-	ts.tv_sec = tp.tv_sec;
-	ht = (tp.tv_usec/1000) + 1; /* round to nearest ms */
-	ts.tv_nsec = ht * 1000000;
-	static int64 toff = 0;
-
-	printf("RealTime EtherCAT Thread started.\n");
-	
-	while (1) {
-		/* calculate next cycle start */
-		add_timespec(&ts, cycletime + toff);
-
-		/* wait until cycle start time */
-		rc = pthread_cond_timedwait(&cond, &mutex, &ts);
-
-		rc = gettimeofday(&tp, NULL);
-
-		ec_send_processdata();
-		ec_receive_processdata(EtherCAT_TIMEOUT); //1 second timeout, this should probably be decreased?
-
-		//not needed? could be used to detect errors?
-		cycle_count++;
-		
-		/* calculate toff to get linux time and ?DC? synced */
-		ec_sync(ec_DCtime, cycletime, &toff);	
-	}
-}
-
+/**
+ * Displays help message on commandline
+ */
 void help(void)
 {
-	printf("This help is not particularly useful!\n");
+	printf("Welcome to the SOEM based Delta robot controller\n");
 	printf("-c = cycle time (us), int\n");
 	printf("-d = device, string\n");
+	printf("-m = coordinate to move all wago stepper motors to\n");
 }
 
+/**
+ * Processes commandline arguments
+ *
+ * @param[in]	argc commandline argument count
+ * @param[in]	argv commandline arguments
+ */
 void process_cmd_opts(int argc, char *argv[])
 {	
 	int c;
@@ -453,9 +525,18 @@ void process_cmd_opts(int argc, char *argv[])
 	}
 }
 
+/**
+ * main function
+ *
+ * Sets up threads
+ * cyclically calls state machine to update state and I/O's
+ * @param[in]	argc commandline argument count
+ * @param[in]	argv commandline arguments	
+ * @return Returns 0
+ */
 int main(int argc, char *argv[])
 {
-	/* should probably do some error checking in this function */
+	/* FIXME: should probably do some error checking in this function */
 	int iret1;
 	int ctime;
 	struct sched_param schedp;
@@ -487,21 +568,17 @@ int main(int argc, char *argv[])
 	param.sched_priority = 40;
 	iret1 = pthread_setschedparam(ethercat_thread_handle, policy, &param);
 
-	/* start a cyclic routine */
-	//input_test(&input_msg);
-
-	int counter = 0;
+	/* give time for ethercat thread to setup ethercat devices. FIXME: should consider getting ethercat thread to signal back when its ready instead. */
 	sleep(2);
 
-
-	/* Control loop */
+	/* start a cyclic routine (update state machine) */
 	while (input_msg.quit == 0) {
 		/* we're ready to run! */
 		usleep(500000);
 		if (state_machine() == ERR_STATE_MACHINE_STOPPED) break;
 	}
 
-	/* FIXME maybe join thread? */
+	/* FIXME maybe join threads? */
 
 	schedp.sched_priority = 0;
 	sched_setscheduler(0, SCHED_OTHER, &schedp);
