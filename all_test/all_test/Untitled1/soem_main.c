@@ -33,8 +33,7 @@
 
 #define NSEC_PER_SEC 1000000000
 #define TICK_RATE 100000
-
-
+#define EtherCAT_TIMEOUT EC_TIMEOUTRET
 
 struct input_msg_t {
 	int quit;
@@ -49,9 +48,10 @@ void check_input(void *ptr)
 	input_msg->quit = 1;
 }
 
+/* memory for holding slave data */
 char IOmap[4096];
 
-/* args */
+/* commandline args */
 char *eth_dev = "eth0";
 uint32 cycle_time = 1000;
 uint32 move_coord = 0;
@@ -60,31 +60,7 @@ uint32 move_coord = 0;
 const int WAGO_DEVICE_OFFSETS_MOSI[] = {0x0005, 0x0011, 0x001d};
 const int WAGO_DEVICE_OFFSETS_MISO[] = {0x0030, 0x003c, 0x0048};
 
-typedef struct PACKED
-{
-	uint8 bit_input;
-} in_EK1002t;
-typedef struct PACKED
-{
-	uint8 bit_output;
-} out_EK2008t;
-
-typedef struct PACKED
-{
-	uint8 counter;
-	uint16 stream[100];
-} in_EK1002_streamt;
-
-#define MAXSTREAM 200000
-#define EtherCAT_TIMEOUT EC_TIMEOUTRET
-
-struct sched_param schedp;
-int32 cycle_count = 0;
-in_EK1002_streamt *in_EK1002;
-
-int streampos; //used uninitialised?!
-int16 stream1[MAXSTREAM];
-int16 stream2[MAXSTREAM];
+uint32_t cycle_count = 0;
 
 void read_soe_info(int slave, int drive_no)
 {
@@ -214,6 +190,7 @@ int ethercat_init_to_pre_op()
 	}
 
 	ec_statecheck(0, EC_STATE_PRE_OP, EC_TIMEOUTSTATE);
+	/* FIXME: some of the slaves do not reach pre_op here, but have no problems goign to safe-op later? should find out why so the following can still be checked */
 	/*if (ec_slave[0].state != EC_STATE_PRE_OP) {
 		printf("EtherCAT: Not all devices reached pre op!\n");
 		for (int i=0; i< 4; i++) {
@@ -277,16 +254,11 @@ int ethercat_safe_op_to_op()
 	
 	ec_send_processdata();
 	int wkc = ec_receive_processdata(EtherCAT_TIMEOUT);
-
 //	printf("got wkc of: %d\n", wkc);
 
 	ec_writestate(0);
 //	printf("lowest state: %d\n", ec_readstate());
 	ec_statecheck(0, EC_STATE_OPERATIONAL, EC_TIMEOUTSTATE);
-	/*for (int i=1; i<=ec_slavecount; i++) {
-		uint8 state = ec_statecheck(i, 8, EC_TIMEOUTSTATE);
-		printf("Slave %d state: %u\n", i,state);
-	}*/
 
 	if (ec_readstate() != EC_STATE_OPERATIONAL) {
 		return ERR_FAILED_OP;
@@ -307,10 +279,11 @@ int ethercat_op_to_safe_op(){
 	ec_writestate(0);
 	
 	/* still need to maintain synchronization until we get back to safe op */		
+	/* FIXME: this should probably still be maintained from the ethercat thread instead of doing this */
 	while (ec_statecheck(0, EC_STATE_SAFE_OP, EC_TIMEOUTSTATE)!=EC_STATE_SAFE_OP) {
 		/* check if timer has not elapsed */
 		clock_gettime(CLOCK_REALTIME, &current_time);
-		/* FIXME I think print statements significantly slow this down? should test at some point */	   
+  
 		if ( compare_timespec(current_time, next_run) == -1 ){
 			continue;
 		}
@@ -320,7 +293,6 @@ int ethercat_op_to_safe_op(){
 		add_timespec(&next_run, TICK_RATE); /* add ns to current time */
 
 		/* timer is sorted, lets go!!! */
-		// the following should not be needed as it is now done in the ethercat thread 
 		ec_send_processdata();
 		ec_receive_processdata(EtherCAT_TIMEOUT);
 	}
@@ -344,6 +316,7 @@ void ethercat_thread(void * ptr)//(struct input_msg_t *input_msg)
 	printf("EtherCAT: Slaves are in safe-op\n");
 
 	/* use distributed clocks */
+	/* I've read distributed clocks are required to use the AX5000 */
 //	ec_configdc();
 
 	if (ethercat_safe_op_to_op() < 0) return;
@@ -356,17 +329,14 @@ void ethercat_thread(void * ptr)//(struct input_msg_t *input_msg)
 	struct timespec current_time;
 	struct timespec result;
 
+/* FIXME: this should be updated to be detected automatically, theres no reason other than laziness to do it this way */
 	for (int i=0; i<3; i++)
 	{
 		wago_steppers[i][WAGO_OUTPUT_SPACE] = (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MOSI[i]];
 		wago_steppers[i][WAGO_INPUT_SPACE] = (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MISO[i]];
 	}
-	/*wago_steppers = { 
-		{ (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MOSI[0]], (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MISO[0]] },
-	   	{ (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MOSI[1]], (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MISO[1]] },
-		{ (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MOSI[2]], (struct wago_stepper_t *) &IOmap[WAGO_DEVICE_OFFSETS_MISO[2]] }
-	};*/
 
+	/* FIXME: this shouldn't be needed as structure is zeroed in main, remove it and check it still works */
 	input_msg->quit = 0;
 
 	while (input_msg->quit == 0) {
@@ -377,6 +347,8 @@ void ethercat_thread(void * ptr)//(struct input_msg_t *input_msg)
 			/* FIXME should there be a usleep here to avoid starvation of other thread? */
 			continue;
 		}
+
+		/* XXX: the following prints out whether timing has been met. The printf() call will very likely cause delay. I would avoid using this, the output probably isn't even reliable */
 #ifdef SHOW_TPS
 		int valid = subtract_timespec(current_time, next_run, &result);
 		printf("valid? %d. difference is %d sec and %ld nsec\n", valid, result.tv_sec, result.tv_nsec);
@@ -393,7 +365,7 @@ void ethercat_thread(void * ptr)//(struct input_msg_t *input_msg)
 		ec_receive_processdata(EtherCAT_TIMEOUT);
 		pthread_mutex_unlock(&io_mutex);
 
-		/* FIXME this is dangerous for time constraints but otherwise can't get other thread to get access :S */
+		/* FIXME: this is dangerous for time constraints but otherwise can't get other thread to get access :S This is possibly a good candidate for pthread_yield(), I don't know whether pthread_yield has less overhead than usleep though */
 		usleep(1);
 	}
 
@@ -440,31 +412,10 @@ void ethercat_thread_orig( void *ptr )
 		ec_send_processdata();
 		ec_receive_processdata(EtherCAT_TIMEOUT); //1 second timeout, this should probably be decreased?
 
-		//not needed?
+		//not needed? could be used to detect errors?
 		cycle_count++;
-
-		/* weird error detection block */
-	/*	if ((in_EK1002->counter != pcounter) && (streampos < (MAXSTREAM-1))) {*/
-			/* 
-			 *  check if there are timing problems in master
-			 * if so, overwrite stream data so it shows up clearly in plots? 
-			 */
-/*			if (in_EK1002->counter > (pcounter+1)) {
-				printf("timing problem?!\n");
-				for (int i=0; i<50; i++) {
-					stream1[streampos] = 20000;
-					stream2[streampos++] = -20000;
-				}
-			} else {
-				for (int i=0; i<50; i++) {
-					stream1[streampos] = in_EK1002->stream[(i * 2)];
-					stream2[streampos] = in_EK1002->stream[(i * 2) + 1];
-				}
-			}
-			pcounter = in_EK1002->counter;
-		}*/
 		
-		/*calculate toff to get linux time and ?DC? synced */
+		/* calculate toff to get linux time and ?DC? synced */
 		ec_sync(ec_DCtime, cycletime, &toff);	
 	}
 }
@@ -507,6 +458,7 @@ int main(int argc, char *argv[])
 	/* should probably do some error checking in this function */
 	int iret1;
 	int ctime;
+	struct sched_param schedp;
 	struct sched_param param;
 	int policy = SCHED_OTHER;
 	pthread_t ethercat_thread_handle;		
@@ -516,6 +468,7 @@ int main(int argc, char *argv[])
 
 	process_cmd_opts(argc, argv);
 
+	/* increase thread priority and set to fifo mode */
 	memset(&schedp, 0, sizeof(schedp));
 	/* do not set priority above 49, otherwise sockets are starved */
 	schedp.sched_priority = 30;
