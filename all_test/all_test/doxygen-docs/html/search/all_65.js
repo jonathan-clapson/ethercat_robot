@@ -20,6 +20,5 @@ var searchData=
   ['ethercat_5fsafe_5fop_5fto_5fop',['ethercat_safe_op_to_op',['../soem__main_8c.html#a014765da2374758a95ab6b25b22996a7',1,'soem_main.c']]],
   ['ethercat_5fsafe_5fop_5fto_5fpre_5fop',['ethercat_safe_op_to_pre_op',['../soem__main_8c.html#a486a723e4eb373a1ddae90c944b92a6d',1,'soem_main.c']]],
   ['ethercat_5fthread',['ethercat_thread',['../soem__main_8c.html#adefe85b5f595f285fa266a70d75f0a77',1,'soem_main.c']]],
-  ['ethercat_5fthread_5forig',['ethercat_thread_orig',['../soem__main_8c.html#a6241c9ae8e33cc34c891b5bab2a41b6c',1,'soem_main.c']]],
   ['ethercat_5ftimeout',['EtherCAT_TIMEOUT',['../soem__main_8c.html#ab98c08609c7126210073e90b94f8eca4',1,'soem_main.c']]]
 ];

@@ -1,6 +1,5 @@
 var searchData=
 [
-  ['schedp',['schedp',['../soem__main_8c.html#ae3bb36567d69fb774d6c8888c91b871a',1,'soem_main.c']]],
   ['sig_5fatomic_5fmax',['SIG_ATOMIC_MAX',['../stdint_8h.html#a1f5fe9445d0ad0bee21bab1de4cc3e58',1,'stdint.h']]],
   ['sig_5fatomic_5fmin',['SIG_ATOMIC_MIN',['../stdint_8h.html#a21e605b9ac3a03b6de93cdf5a69e129f',1,'stdint.h']]],
   ['size_5fmax',['SIZE_MAX',['../stdint_8h.html#a3c75bb398badb69c7577b21486f9963f',1,'stdint.h']]],
@@ -10,10 +9,6 @@ var searchData=
   ['state_5fmachine_2ec',['state_machine.c',['../state__machine_8c.html',1,'']]],
   ['state_5fmachine_2eh',['state_machine.h',['../state__machine_8h.html',1,'']]],
   ['stdint_2eh',['stdint.h',['../stdint_8h.html',1,'']]],
-  ['stream',['stream',['../struct_p_a_c_k_e_d.html#ae6195a855d68df17730e73c18748fc18',1,'PACKED']]],
-  ['stream1',['stream1',['../soem__main_8c.html#aa8bd2143106b4e0b34986858d22a656c',1,'soem_main.c']]],
-  ['stream2',['stream2',['../soem__main_8c.html#afff7e31bb8aac02b570d1e4782805a6e',1,'soem_main.c']]],
-  ['streampos',['streampos',['../soem__main_8c.html#a62be9ae691c0813cd12581aa7bd1446f',1,'soem_main.c']]],
   ['subtract_5ftimespec',['subtract_timespec',['../soem__main_8c.html#ac4f7c09ab2b789c2d88025d1149da8eb',1,'soem_main.c']]],
   ['support_2ecpp',['support.cpp',['../support_8cpp.html',1,'']]],
   ['support_2eh',['support.h',['../support_8h.html',1,'']]]

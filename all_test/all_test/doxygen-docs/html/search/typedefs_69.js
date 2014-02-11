@@ -1,7 +1,5 @@
 var searchData=
 [
-  ['in_5fek1002_5fstreamt',['in_EK1002_streamt',['../soem__main_8c.html#a52ea4bb0c5f4eeaada4995b4a67a4f90',1,'soem_main.c']]],
-  ['in_5fek1002t',['in_EK1002t',['../soem__main_8c.html#af568328afe4f12e3f44f01432857fb84',1,'soem_main.c']]],
   ['int16_5ft',['int16_t',['../stdint_8h.html#a269259c924dce846340ddbb810db2e3c',1,'stdint.h']]],
   ['int32_5ft',['int32_t',['../stdint_8h.html#ab1967d8591af1a4e48c37fd2b0f184d0',1,'stdint.h']]],
   ['int64_5ft',['int64_t',['../stdint_8h.html#a414156feea104f8f75b4ed9e3121b2f6',1,'stdint.h']]],

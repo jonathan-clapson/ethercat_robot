@@ -112,7 +112,7 @@ Variables</h2></td></tr>
 </table>
 <a name="details" id="details"></a><h2>Detailed Description</h2>
 <div class="textblock"><p>State machine used for controlling the system. </p>
-<dl class="section warning"><dt>Warning</dt><dd>Building this file in visual studio requires setting the /TP build option (Project-&gt;Properties-&gt;c/c++-&gt;commandline-&gt;additional options) This forces this file to be compiled as c++ as otherwise a beckhoff header gets pulled in and treated as c which causes a c++ struct (method overloads) to fail to compile This file is used both in SOEM and TwinCAT3 (which is why there are #ifdef's everywhere :S </dd></dl>
+<dl class="section warning"><dt>Warning</dt><dd>Building this file in visual studio requires setting the /TP build option (Project-&gt;Properties-&gt;c/c++-&gt;commandline-&gt;additional options) This forces this file to be compiled as c++ as otherwise a beckhoff header gets pulled in and treated as c which causes a c++ struct (method overloads) to fail to compile This file is used both in SOEM and TwinCAT3 (which is why there are #ifdef's everywhere :S The ifdefs should really be detecting visual studio vs gcc rather than _win32 and linux though. This needs to be fixed. </dd></dl>
 
 <p>Definition in file <a class="el" href="state__machine_8c_source.html">state_machine.c</a>.</p>
 </div><h2>Function Documentation</h2>
@@ -160,7 +160,7 @@ Variables</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue Feb 11 2014 16:44:59 for SOEM+TwinCAT3 by &#160;<a href="http://www.doxygen.org/index.html">
+Generated on Wed Feb 12 2014 11:05:29 for SOEM+TwinCAT3 by &#160;<a href="http://www.doxygen.org/index.html">
 <img class="footer" src="doxygen.png" alt="doxygen"/>
 </a> 1.8.1.2
 </small></address>

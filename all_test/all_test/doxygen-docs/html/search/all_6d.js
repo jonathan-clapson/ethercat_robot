@@ -8,7 +8,6 @@ var searchData=
   ['m_5ftrace',['m_Trace',['../class_c_module1.html#acd30bfe0b8e877863dc3ae0f21d48218',1,'CModule1']]],
   ['m_5ftracelevelmax',['m_TraceLevelMax',['../class_c_module1.html#a0d571ff12300bacf193037b10ba81f3a',1,'CModule1']]],
   ['main',['main',['../soem__main_8c.html#a0ddf1224851353fc92bfbff6f499fa97',1,'soem_main.c']]],
-  ['maxstream',['MAXSTREAM',['../soem__main_8c.html#acd1f886f4037a276772c4cc87461c310',1,'soem_main.c']]],
   ['module1_2ecpp',['Module1.cpp',['../_module1_8cpp.html',1,'']]],
   ['module1_2eh',['Module1.h',['../_module1_8h.html',1,'']]],
   ['module1inputs',['Module1Inputs',['../_untitled1_services_8h.html#a15c2c396cf9034dc3fddc37738c668c3',1,'Untitled1Services.h']]],
