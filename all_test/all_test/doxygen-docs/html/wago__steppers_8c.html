@@ -180,8 +180,18 @@ Variables</h2></td></tr>
         </tr>
       </table>
 </div><div class="memdoc">
+<p>Verifies device has entered positioning mode</p>
+<p>according to manual this is done by checking the status bit m_positioning </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in,out]</td><td class="paramname">wago_steppers</td><td>Pointer to the array holding addresses of wago stepper motor io spaces </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">device</td><td>The wago stepper to terminate, should start from 0 and go to WAGO_NUM_STEPPERS-1 </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>WAGO_ERR_SUCCESS on success, WAGO error code on failure </dd></dl>
 
-<p>Definition at line <a class="el" href="wago__steppers_8c_source.html#l00120">120</a> of file <a class="el" href="wago__steppers_8c_source.html">wago_steppers.c</a>.</p>
+<p>Definition at line <a class="el" href="wago__steppers_8c_source.html#l00137">137</a> of file <a class="el" href="wago__steppers_8c_source.html">wago_steppers.c</a>.</p>
 
 </div>
 </div>
@@ -208,8 +218,18 @@ Variables</h2></td></tr>
         </tr>
       </table>
 </div><div class="memdoc">
+<p>Verifies device is ready for operating mode selection</p>
+<p>according to manual this is done by checking status bit start is disabled and status bits enable and stop2_n are disabled </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in,out]</td><td class="paramname">wago_steppers</td><td>Pointer to the array holding addresses of wago stepper motor io spaces </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">device</td><td>The wago stepper to terminate, should start from 0 and go to WAGO_NUM_STEPPERS-1 </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>WAGO_ERR_SUCCESS on success, WAGO error code on failure </dd></dl>
 
-<p>Definition at line <a class="el" href="wago__steppers_8c_source.html#l00085">85</a> of file <a class="el" href="wago__steppers_8c_source.html">wago_steppers.c</a>.</p>
+<p>Definition at line <a class="el" href="wago__steppers_8c_source.html#l00094">94</a> of file <a class="el" href="wago__steppers_8c_source.html">wago_steppers.c</a>.</p>
 
 </div>
 </div>
@@ -285,7 +305,7 @@ Variables</h2></td></tr>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>WAGO_ERR_SUCCESS on success, WAGO error code on failure </dd></dl>
 
-<p>Definition at line <a class="el" href="wago__steppers_8c_source.html#l00204">204</a> of file <a class="el" href="wago__steppers_8c_source.html">wago_steppers.c</a>.</p>
+<p>Definition at line <a class="el" href="wago__steppers_8c_source.html#l00221">221</a> of file <a class="el" href="wago__steppers_8c_source.html">wago_steppers.c</a>.</p>
 
 </div>
 </div>
@@ -330,7 +350,7 @@ Variables</h2></td></tr>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>WAGO_ERR_SUCCESS on success, WAGO error code on failure </dd></dl>
 
-<p>Definition at line <a class="el" href="wago__steppers_8c_source.html#l00162">162</a> of file <a class="el" href="wago__steppers_8c_source.html">wago_steppers.c</a>.</p>
+<p>Definition at line <a class="el" href="wago__steppers_8c_source.html#l00179">179</a> of file <a class="el" href="wago__steppers_8c_source.html">wago_steppers.c</a>.</p>
 
 </div>
 </div>
@@ -375,7 +395,7 @@ Variables</h2></td></tr>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>WAGO_ERR_SUCCESS on success, WAGO error code on failure </dd></dl>
 
-<p>Definition at line <a class="el" href="wago__steppers_8c_source.html#l00182">182</a> of file <a class="el" href="wago__steppers_8c_source.html">wago_steppers.c</a>.</p>
+<p>Definition at line <a class="el" href="wago__steppers_8c_source.html#l00199">199</a> of file <a class="el" href="wago__steppers_8c_source.html">wago_steppers.c</a>.</p>
 
 </div>
 </div>
@@ -413,7 +433,7 @@ Variables</h2></td></tr>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>WAGO_ERR_SUCCESS on success, WAGO error code on failure </dd></dl>
 
-<p>Definition at line <a class="el" href="wago__steppers_8c_source.html#l00110">110</a> of file <a class="el" href="wago__steppers_8c_source.html">wago_steppers.c</a>.</p>
+<p>Definition at line <a class="el" href="wago__steppers_8c_source.html#l00119">119</a> of file <a class="el" href="wago__steppers_8c_source.html">wago_steppers.c</a>.</p>
 
 </div>
 </div>
@@ -496,7 +516,7 @@ Variables</h2></td></tr>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>WAGO_ERR_SUCCESS on success, WAGO error code on failure </dd></dl>
 
-<p>Definition at line <a class="el" href="wago__steppers_8c_source.html#l00142">142</a> of file <a class="el" href="wago__steppers_8c_source.html">wago_steppers.c</a>.</p>
+<p>Definition at line <a class="el" href="wago__steppers_8c_source.html#l00159">159</a> of file <a class="el" href="wago__steppers_8c_source.html">wago_steppers.c</a>.</p>
 
 </div>
 </div>
@@ -556,7 +576,7 @@ Variables</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Feb 12 2014 11:08:09 for SOEM+TwinCAT3 by &#160;<a href="http://www.doxygen.org/index.html">
+Generated on Wed Feb 12 2014 11:17:15 for SOEM+TwinCAT3 by &#160;<a href="http://www.doxygen.org/index.html">
 <img class="footer" src="doxygen.png" alt="doxygen"/>
 </a> 1.8.1.2
 </small></address>

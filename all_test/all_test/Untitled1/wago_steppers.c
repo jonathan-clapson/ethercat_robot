@@ -82,6 +82,15 @@ int wago_set_setup_mode(struct wago_stepper_t *wago_steppers[WAGO_NUM_STEPPERS][
 
 	return WAGO_ERR_SUCCESS;
 }
+
+/**
+ * Verifies device is ready for operating mode selection
+ * 
+ * according to manual this is done by checking status bit start is disabled and status bits enable and stop2_n are disabled
+ * @param[in,out]	wago_steppers Pointer to the array holding addresses of wago stepper motor io spaces
+ * @param[in]		device The wago stepper to terminate, should start from 0 and go to WAGO_NUM_STEPPERS-1
+ * @return WAGO_ERR_SUCCESS on success, WAGO error code on failure
+ */
 int wago_confirm_setup_mode(struct wago_stepper_t *wago_steppers[WAGO_NUM_STEPPERS][WAGO_LENGTH_SPACE], int device)
 {
 	IO_LOCK;
@@ -117,6 +126,14 @@ int wago_set_positioning_mode(struct wago_stepper_t *wago_steppers[WAGO_NUM_STEP
 	return WAGO_ERR_SUCCESS;
 }
 
+/**
+ * Verifies device has entered positioning mode
+ * 
+ * according to manual this is done by checking the status bit m_positioning
+ * @param[in,out]	wago_steppers Pointer to the array holding addresses of wago stepper motor io spaces
+ * @param[in]		device The wago stepper to terminate, should start from 0 and go to WAGO_NUM_STEPPERS-1
+ * @return WAGO_ERR_SUCCESS on success, WAGO error code on failure
+ */
 int wago_confirm_positioning_mode(struct wago_stepper_t *wago_steppers[WAGO_NUM_STEPPERS][WAGO_LENGTH_SPACE], int device)
 {
 	//IO_LOCK;
