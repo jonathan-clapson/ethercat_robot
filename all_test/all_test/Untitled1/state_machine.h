@@ -5,7 +5,7 @@
 #include "wago_steppers.h"
 
 #ifdef _WIN32
-void state_machine(CTcTrace &m_Trace);
+int state_machine(CTcTrace &m_Trace);
 #else
 int state_machine();
 #endif

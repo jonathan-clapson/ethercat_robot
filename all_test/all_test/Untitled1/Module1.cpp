@@ -1,4 +1,8 @@
-/** \file * \brief * Base TwinCAT3 module * * \warning This program has a bit of a quirky printf(). This printf is one I have created, 
+/** \file
+ * \brief
+ * Base TwinCAT3 module
+ *
+ * \warning This program has a bit of a quirky printf(). This printf is one I have created, 
  * implementation can be found in support.h
  * The printf implementation requires that a reference to the m_Trace object (Type CTcTrace)
  * available in this class is locally available. This is why the m_Trace object is passed to state_machine
