@@ -205,7 +205,8 @@ int state_machine() {
 		break;
 
 	case stop:
-		printf("positioning mode: %d\n", wago_steppers[0][1]->stat_cont1.bit.m_positioning);
+		if (last_state != current_state)
+			printf("positioning mode: %d\n", wago_steppers[0][1]->stat_cont1.bit.m_positioning);
 
 		last_state = stop;
 		return ERR_STATE_MACHINE_STOPPED;

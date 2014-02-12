@@ -52,8 +52,10 @@ struct __attribute__((__packed__)) wago_stepper_t {
 		} bit;
 	} stat_cont0;
 
+#ifndef _WIN32
 	uint8_t reserved;
-	
+#endif /* _WIN32 */
+
 	union {
 		struct {
 			uint8_t velocity_lbyte;
