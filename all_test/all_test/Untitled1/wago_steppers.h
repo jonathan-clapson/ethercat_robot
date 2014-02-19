@@ -6,7 +6,7 @@
  * written by: Jonathan Clapson (5 FEB 2014)
  */
 
-#ifdef _WIN32
+#ifdef TC_VER /* If a twincat 3 version is defined */
 #pragma once
 #endif
 
@@ -27,20 +27,20 @@ enum {
 	WAGO_LENGTH_SPACE
 };
 
-#ifndef _WIN32
+#ifndef TC_VER /* If a twincat 3 version is defined */
 #include <pthread.h>
 extern pthread_mutex_t io_mutex;
 #endif
 
 /* io structures */
-#ifdef _WIN32
+#ifdef TC_VER /* If a twincat 3 version is defined */
 #include "stdint.h"
 __pragma( pack(push, 1) )
 struct wago_stepper_t {
 #else
 #include <stdint.h>
 struct __attribute__((__packed__)) wago_stepper_t {
-#endif /*_WIN32 */
+#endif /*TC_VER */
 
 	union {
 		uint8_t value;
@@ -107,9 +107,9 @@ struct __attribute__((__packed__)) wago_stepper_t {
 		} bit;
 	} stat_cont1;	
 };
-#ifdef _WIN32
+#ifdef TC_VER /* If a twincat 3 version is defined */
 __pragma( pack(pop) )
-#endif /* _WIN32 */ 
+#endif /* TC_VER */ 
 
 int wago_terminate_mode(struct wago_stepper_t *wago_steppers[WAGO_NUM_STEPPERS][WAGO_LENGTH_SPACE], int device);
 int wago_confirm_terminate_mode(struct wago_stepper_t *wago_steppers[WAGO_NUM_STEPPERS][WAGO_LENGTH_SPACE], int device);

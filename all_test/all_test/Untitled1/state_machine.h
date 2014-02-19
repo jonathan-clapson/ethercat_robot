@@ -4,7 +4,7 @@
  */
 #include "wago_steppers.h"
 
-#ifdef _WIN32
+#ifdef TC_VER /* If a twincat 3 version is defined */
 int state_machine(CTcTrace &m_Trace);
 #else
 int state_machine();

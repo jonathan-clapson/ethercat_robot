@@ -11,7 +11,7 @@
 #include "wago_steppers.h"
 
 /* Allow pthread locking using SOEM. Not needed when using TwinCAT3 */
-#ifdef _WIN32
+#ifdef TC_VER /* If a twincat 3 version is defined */
 #define IO_LOCK NULL
 #define IO_UNLOCK NULL
 #else

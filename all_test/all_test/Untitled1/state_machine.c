@@ -9,7 +9,7 @@
  *
  */
 
-#ifdef _WIN32 /* Windows - TwinCAT3 Includes */
+#ifdef TC_VER /* If a twincat 3 version is defined */
 #include "stdint.h"
 #include "support.h" //fake printf()
 #else /* Linux - SOEM Includes */
@@ -34,7 +34,7 @@ struct wago_stepper_t *wago_steppers[WAGO_NUM_STEPPERS][WAGO_LENGTH_SPACE];
  * @param[in]     m_Trace A reference to TwinCAT3's m_Trace object, needed for printf() in TwinCAT3. This argument is not present under SOEM.
  * @return Returns ERR_SUCCESS if the state machine is still executing and ERR_STATE_MACHINE_STOPPED once execution is complete.
  */
-#ifdef _WIN32
+#ifdef TC_VER /* If a twincat 3 version is defined */
 int state_machine(CTcTrace &m_Trace) {
 #else
 int state_machine() {
