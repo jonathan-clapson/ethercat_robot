@@ -1227,7 +1227,7 @@
 		<ImageData Id="1004">424dd6020000000000003600000028000000100000000e0000000100180000000000a0020000c40e0000c40e00000000000000000000ff00ffff00ffff00ffff00ffff00ffff00ff808080808080808080ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffc0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffc0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffc0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffc0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffc0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffc0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ffff00ffff00ff007fff007fff007fff007fff007fff007fffc0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ffff00ffff00ff007fff007fff007fff007fff007fff007fffc0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ffff00ffff00ff007fff007fff007fff007fff007fff007fffc0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ffff00ffff00ff007fff007fff007fff007fff007fff007fffc0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ffff00ffff00ff007fff007fff007fff007fff007fff007fffc0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ffff00ffff00ff007fff007fff007fff007fff007fff007fffc0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ffff00ffff00ff007fff007fff007fff007fff007fff007fffc0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ffff00ffff00ff</ImageData>
 		<ImageData Id="1005">424de6000000000000007600000028000000100000000e000000010004000000000070000000120b0000120b0000100000001000000000000000000080000080000000808000800000008000800080800000c0c0c000808080000000ff0000ff000000ffff00ff000000ff00ff00ffff0000ffffff009d9dd99dd9ddd9dd9d9d9dd9d9ddd9dd999d9dd9d999d9999d9d9dd9d9ddd9dd9d9dd99dd999d999dddddddddddddddd88888888888888888888888888888888dddddddddddddddd999d999dd99dd9d99d9d9ddd9dd9d9d999dd999d9dddd99d9d9d9ddd9dd9d99d999d999dd99dd9d9</ImageData>
 	</ImageDatas>
-	<Project ProjectGUID="{400639BC-B15F-4E83-A88E-86CDDC528BBA}" ModifiedGUID="{C4D124EE-EA82-4C81-B5C3-E00A6BDC9800}" Target64Bit="true">
+	<Project ProjectGUID="{400639BC-B15F-4E83-A88E-86CDDC528BBA}" ModifiedGUID="{D9C3FF2E-91A9-455D-A6AE-CFA431A41260}" Target64Bit="true">
 		<System>
 			<Tasks>
 				<Task Id="4" Priority="1" CycleTime="100000" AmsPort="350">
@@ -1287,7 +1287,7 @@
 						</Vars>
 					</Encoder>
 					<Drive Name="Drive" DrvType="9">
-						<DrvPara MaxCount="#xffffffff" DriveControlDWord="#x00030000">
+						<DrvPara MaxCount="#xffffffff" DriveControlDWord="#x00030100">
 							<Analog VeloScale="1.02398817080127"/>
 							<TimeComp TaskDelayCycles="1"/>
 						</DrvPara>
@@ -1375,7 +1375,7 @@ Drive Status 4 (manually linked):
 						</Vars>
 					</Encoder>
 					<Drive Name="Drive" DrvType="9">
-						<DrvPara MaxCount="#xffffffff" DriveControlDWord="#x00030000">
+						<DrvPara MaxCount="#xffffffff" DriveControlDWord="#x00030100">
 							<Analog VeloScale="1.02398817080127"/>
 							<TimeComp TaskDelayCycles="1"/>
 						</DrvPara>
@@ -1465,7 +1465,7 @@ Drive Status 4 (manually linked):
 						</Vars>
 					</Encoder>
 					<Drive Name="Drive" DrvType="9">
-						<DrvPara MaxCount="#xffffffff" DriveControlDWord="#x00030000">
+						<DrvPara MaxCount="#xffffffff" DriveControlDWord="#x00030100">
 							<Analog VeloScale="1.02398817080127"/>
 							<TimeComp TaskDelayCycles="1"/>
 						</DrvPara>
@@ -2727,7 +2727,7 @@ Drive Status 4 (manually linked):
 						<SyncMan>001880002600010001000000800080008000001826010000</SyncMan>
 						<SyncMan>001a80002200010002000000800080008000001a22010000</SyncMan>
 						<SyncMan>00100c002400010003000000000000000000001024010000</SyncMan>
-						<SyncMan>00110c002200010004000000000000000000001122010000</SyncMan>
+						<SyncMan>001114002200010004000000000000000000001122010000</SyncMan>
 						<Fmmu>0000000000000000001000020100000001000000000000000000000000000000</Fmmu>
 						<Fmmu>0000000000000000001100010100000002000000000000000000000000000000</Fmmu>
 						<Fmmu>00000000000000000d0800010100000003000000000000000000000000000000</Fmmu>
@@ -2737,8 +2737,8 @@ Drive Status 4 (manually linked):
 						<DcMode>446353796e633132350000000000000053796e63206379636c652074696d653a20313235b5730000000000000000000048e80100a861000000000000ffff30070000000000000000000000000000000000000000000000000000000000000000</DcMode>
 						<MBoxUserCmdData>020005000a0000001500000000000000000000000000000000000000000000000340010000000000d007546e637963202d204e43206379636c652074696d6500</MBoxUserCmdData>
 						<MBoxUserCmdData>020005000a0000001700000000000000000000000000000000000000000000000340020000000000d0075473637963202d20436f6d6d206379636c652074696d6500</MBoxUserCmdData>
-						<MBoxUserCmdData>020005000a0000000e0000000300000000000000000000000000000000000000034020000000000002004f7065726174696f6e206d6f646500</MBoxUserCmdData>
-						<MBoxUserCmdData>020005000a0000000e0000000300000000000000000000000000000000000000234020000000000002004f7065726174696f6e206d6f646500</MBoxUserCmdData>
+						<MBoxUserCmdData>020005000a0000000e0000000000000000000000000000000000000000000000034020000000000003004f7065726174696f6e206d6f646500</MBoxUserCmdData>
+						<MBoxUserCmdData>020005000a0000000e0000000000000000000000000000000000000000000000234020000000000003004f7065726174696f6e206d6f646500</MBoxUserCmdData>
 						<MBoxUserCmdData>020005000a0000001400000000000000000000000000000000000000000000000340c98000000000fc084e6f6d696e616c206d61696e20766f6c7461676500</MBoxUserCmdData>
 						<MBoxUserCmdData>020005000a0000002500000000000000000000000000000000000000000000000340ca8000000000c8004d61696e20766f6c7461676520706f73697469766520746f6c6572616e63652072616e676500</MBoxUserCmdData>
 						<MBoxUserCmdData>020005000a0000002500000000000000000000000000000000000000000000000340cb8000000000c8004d61696e20766f6c74616765206e6567617469766520746f6c6572616e63652072616e676500</MBoxUserCmdData>
@@ -2819,34 +2819,40 @@ Drive Status 4 (manually linked):
 						<MBoxUserCmdData>020005000a0000002200000000000000000000000000000000000000000000002340650000000000280056656c6f63697479206c6f6f7020696e74656772616c20616374696f6e2074696d6500</MBoxUserCmdData>
 						<MBoxUserCmdData>020005004c0000001c0000000000000000000000000000000000000000000000034001820000000040004000000000000000000000000000000000000000000000000000000000000000000000000000401d100000000000000000000000000000000000000000004086000043757272656e7420636f6d6d616e642076616c75652066696c74657200</MBoxUserCmdData>
 						<Pdo Name="AT 1" Index="#x0010" Flags="#x0001" SyncMan="3">
-							<Entry Name="Drive status word" Index="#x0087" Flags="#x00000800">
+							<Entry Name="Drive status word" BitLen="16" Index="#x0087" Flags="#x00000800">
 								<Type>UINT</Type>
 							</Entry>
-							<Entry Name="Position feedback 1 value" Index="#x0033">
+							<Entry Name="Position feedback value 1 (motor feedback)" BitLen="32" Index="#x0033">
+								<Type>DINT</Type>
+							</Entry>
+							<Entry Name="Following distance" BitLen="32" Index="#x00bd">
 								<Type>DINT</Type>
 							</Entry>
 						</Pdo>
 						<Pdo Name="AT 2" Index="#x1010" Flags="#x0001" SyncMan="3">
-							<Entry Name="Drive status word" Index="#x0087" Flags="#x00000800">
+							<Entry Name="Drive status word" BitLen="16" Index="#x0087" Flags="#x00000800">
 								<Type>UINT</Type>
 							</Entry>
-							<Entry Name="Position feedback 1 value" Index="#x0033">
+							<Entry Name="Position feedback value 1 (motor feedback)" BitLen="32" Index="#x0033">
+								<Type>DINT</Type>
+							</Entry>
+							<Entry Name="Following distance" BitLen="32" Index="#x00bd">
 								<Type>DINT</Type>
 							</Entry>
 						</Pdo>
 						<Pdo Name="MDT 1" Index="#x0018" InOut="1" Flags="#x0001" SyncMan="2">
-							<Entry Name="Master control word" Index="#x0086" Flags="#x00000800">
+							<Entry Name="Master control word" BitLen="16" Index="#x0086" Flags="#x00000800">
 								<Type>UINT</Type>
 							</Entry>
-							<Entry Name="Velocity command value" Index="#x0024">
+							<Entry Name="Position command value" BitLen="32" Index="#x002f">
 								<Type>DINT</Type>
 							</Entry>
 						</Pdo>
 						<Pdo Name="MDT 2" Index="#x1018" InOut="1" Flags="#x0001" SyncMan="2">
-							<Entry Name="Master control word" Index="#x0086" Flags="#x00000800">
+							<Entry Name="Master control word" BitLen="16" Index="#x0086" Flags="#x00000800">
 								<Type>UINT</Type>
 							</Entry>
-							<Entry Name="Velocity command value" Index="#x0024">
+							<Entry Name="Position command value" BitLen="32" Index="#x002f">
 								<Type>DINT</Type>
 							</Entry>
 						</Pdo>
@@ -3440,7 +3446,7 @@ Drive Status 4 (manually linked):
 						<SyncMan>001880002600010001000000800080008000001826010000</SyncMan>
 						<SyncMan>001a80002200010002000000800080008000001a22010000</SyncMan>
 						<SyncMan>001006002400010003000000000000000000001024010000</SyncMan>
-						<SyncMan>001106002200010004000000000000000000001122010000</SyncMan>
+						<SyncMan>00110a002200010004000000000000000000001122010000</SyncMan>
 						<Fmmu>0000000000000000001000020100000001000000000000000000000000000000</Fmmu>
 						<Fmmu>0000000000000000001100010100000002000000000000000000000000000000</Fmmu>
 						<Fmmu>00000000000000000d0800010100000003000000000000000000000000000000</Fmmu>
@@ -3451,7 +3457,7 @@ Drive Status 4 (manually linked):
 						<DcMode>446353796e6336322e3500000000000053796e63206379636c652074696d653a2036322e35b57300000000000000000024f400000000000000000000ffff30070000000000000000000000000000000000000000000000000000000000000000</DcMode>
 						<MBoxUserCmdData>020005000a0000001500000000000000000000000000000000000000000000000340010000000000d007546e637963202d204e43206379636c652074696d6500</MBoxUserCmdData>
 						<MBoxUserCmdData>020005000a0000001700000000000000000000000000000000000000000000000340020000000000d0075473637963202d20436f6d6d206379636c652074696d6500</MBoxUserCmdData>
-						<MBoxUserCmdData>020005000a0000000e0000000300000000000000000000000000000000000000034020000000000002004f7065726174696f6e206d6f646500</MBoxUserCmdData>
+						<MBoxUserCmdData>020005000a0000000e0000000000000000000000000000000000000000000000034020000000000003004f7065726174696f6e206d6f646500</MBoxUserCmdData>
 						<MBoxUserCmdData>020005000a0000001400000000000000000000000000000000000000000000000340c98000000000fc084e6f6d696e616c206d61696e20766f6c7461676500</MBoxUserCmdData>
 						<MBoxUserCmdData>020005000a0000002500000000000000000000000000000000000000000000000340ca8000000000c8004d61696e20766f6c7461676520706f73697469766520746f6c6572616e63652072616e676500</MBoxUserCmdData>
 						<MBoxUserCmdData>020005000a0000002500000000000000000000000000000000000000000000000340cb8000000000c8004d61696e20766f6c74616765206e6567617469766520746f6c6572616e63652072616e676500</MBoxUserCmdData>
@@ -3494,18 +3500,21 @@ Drive Status 4 (manually linked):
 						<MBoxUserCmdData>020005000c0000001f000000000000000000000000000000000000000000000003406400000000005802000056656c6f63697479206c6f6f702070726f706f7274696f6e616c206761696e00</MBoxUserCmdData>
 						<MBoxUserCmdData>020005000a0000002200000000000000000000000000000000000000000000000340650000000000280056656c6f63697479206c6f6f7020696e74656772616c20616374696f6e2074696d6500</MBoxUserCmdData>
 						<Pdo Name="AT" Index="#x0010" Flags="#x0001" SyncMan="3">
-							<Entry Name="Drive status word" Index="#x0087" Flags="#x00000800">
+							<Entry Name="Drive status word" BitLen="16" Index="#x0087" Flags="#x00000800">
 								<Type>UINT</Type>
 							</Entry>
-							<Entry Name="Position feedback 1 value" Index="#x0033">
+							<Entry Name="Position feedback value 1 (motor feedback)" BitLen="32" Index="#x0033">
+								<Type>DINT</Type>
+							</Entry>
+							<Entry Name="Following distance" BitLen="32" Index="#x00bd">
 								<Type>DINT</Type>
 							</Entry>
 						</Pdo>
 						<Pdo Name="MDT" Index="#x0018" InOut="1" Flags="#x0001" SyncMan="2">
-							<Entry Name="Master control word" Index="#x0086" Flags="#x00000800">
+							<Entry Name="Master control word" BitLen="16" Index="#x0086" Flags="#x00000800">
 								<Type>UINT</Type>
 							</Entry>
-							<Entry Name="Velocity command value" Index="#x0024">
+							<Entry Name="Position command value" BitLen="32" Index="#x002f">
 								<Type>DINT</Type>
 							</Entry>
 						</Pdo>
@@ -3999,11 +4008,12 @@ Drive Status 4 (manually linked):
 		</OwnerA>
 		<OwnerA Name="TINC^NC-Task 1 SAF^Axes^Axis 1">
 			<OwnerB Name="TIID^Device 2 (EtherCAT)^Drive 1 (AX5203-0000-0011)">
-				<Link VarA="Enc^Inputs^In^nDataIn1" VarB="AT 1^Position feedback 1 value"/>
+				<Link VarA="Enc^Inputs^In^nDataIn1" VarB="AT 1^Position feedback value 1 (motor feedback)"/>
 				<Link VarA="Enc^Inputs^In^nDcInputTime" VarB="InfoData^DcInputShift"/>
+				<Link VarA="Drive^Inputs^In^nDataIn1" VarB="AT 1^Following distance"/>
 				<Link VarA="Drive^Inputs^In^nState1" VarB="AT 1^Drive status word" Size="8" OffsB="8"/>
-				<Link VarA="Drive^Outputs^Out^nDataOut2" VarB="MDT 1^Velocity command value"/>
 				<Link VarA="Drive^Inputs^In^nDcOutputTime" VarB="InfoData^DcOutputShift"/>
+				<Link VarA="Drive^Outputs^Out^nDataOut1" VarB="MDT 1^Position command value"/>
 				<Link VarA="Enc^Inputs^In^nState4" VarB="WcState^InputToggle" Size="1" OffsA="1"/>
 				<Link VarA="Drive^Inputs^In^nState4" VarB="WcState^InputToggle" Size="1" OffsA="1"/>
 				<Link VarA="Drive^Outputs^Out^nCtrl1" VarB="MDT 1^Master control word" Size="8" OffsB="8"/>
@@ -4015,9 +4025,9 @@ Drive Status 4 (manually linked):
 		<OwnerA Name="TINC^NC-Task 1 SAF^Axes^Axis 2">
 			<OwnerB Name="TIID^Device 2 (EtherCAT)^Drive 1 (AX5203-0000-0011)">
 				<Link VarA="Enc^Inputs^In^nDcInputTime" VarB="InfoData^DcInputShift"/>
-				<Link VarA="Drive^Outputs^Out^nDataOut2" VarB="MDT 2^Velocity command value"/>
 				<Link VarA="Drive^Inputs^In^nDcOutputTime" VarB="InfoData^DcOutputShift"/>
-				<Link VarA="Enc^Inputs^In^nDataIn1" VarB="AT 2^Position feedback 1 value"/>
+				<Link VarA="Drive^Outputs^Out^nDataOut1" VarB="MDT 2^Position command value"/>
+				<Link VarA="Enc^Inputs^In^nDataIn1" VarB="AT 2^Position feedback value 1 (motor feedback)"/>
 				<Link VarA="Drive^Outputs^Out^nCtrl1" VarB="MDT 2^Master control word" Size="8" OffsB="8"/>
 				<Link VarA="Enc^Inputs^In^nState4" VarB="WcState^InputToggle" Size="1" OffsA="1"/>
 				<Link VarA="Drive^Inputs^In^nState4" VarB="WcState^InputToggle" Size="1" OffsA="1"/>
@@ -4025,20 +4035,22 @@ Drive Status 4 (manually linked):
 				<Link VarA="Drive^Inputs^In^nState2" VarB="AT 2^Drive status word"/>
 				<Link VarA="Drive^Inputs^In^nState4" VarB="WcState^WcState"/>
 				<Link VarA="Drive^Inputs^In^nState1" VarB="AT 2^Drive status word" Size="8" OffsB="8"/>
+				<Link VarA="Drive^Inputs^In^nDataIn1" VarB="AT 2^Following distance"/>
 			</OwnerB>
 		</OwnerA>
 		<OwnerA Name="TINC^NC-Task 1 SAF^Axes^Axis 3">
 			<OwnerB Name="TIID^Device 2 (EtherCAT)^Drive 2 (AX5103-0000-0011)">
-				<Link VarA="Enc^Inputs^In^nDataIn1" VarB="AT^Position feedback 1 value"/>
+				<Link VarA="Enc^Inputs^In^nDataIn1" VarB="AT^Position feedback value 1 (motor feedback)"/>
+				<Link VarA="Drive^Outputs^Out^nDataOut1" VarB="MDT^Position command value"/>
 				<Link VarA="Enc^Inputs^In^nState4" VarB="WcState^WcState"/>
 				<Link VarA="Enc^Inputs^In^nState4" VarB="WcState^InputToggle" Size="1" OffsA="1"/>
 				<Link VarA="Drive^Inputs^In^nState2" VarB="AT^Drive status word"/>
 				<Link VarA="Drive^Inputs^In^nState4" VarB="WcState^WcState"/>
 				<Link VarA="Drive^Inputs^In^nState4" VarB="WcState^InputToggle" Size="1" OffsA="1"/>
 				<Link VarA="Enc^Inputs^In^nDcInputTime" VarB="InfoData^DcInputShift"/>
-				<Link VarA="Drive^Outputs^Out^nDataOut2" VarB="MDT^Velocity command value"/>
 				<Link VarA="Drive^Outputs^Out^nCtrl1" VarB="MDT^Master control word" Size="8" OffsB="8"/>
 				<Link VarA="Drive^Inputs^In^nState1" VarB="AT^Drive status word" Size="8" OffsB="8"/>
+				<Link VarA="Drive^Inputs^In^nDataIn1" VarB="AT^Following distance"/>
 				<Link VarA="Drive^Inputs^In^nDcOutputTime" VarB="InfoData^DcOutputShift"/>
 			</OwnerB>
 		</OwnerA>
