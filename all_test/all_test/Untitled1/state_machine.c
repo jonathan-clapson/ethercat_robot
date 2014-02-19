@@ -12,7 +12,7 @@
 #ifdef TC_VER /* If a twincat 3 version is defined */
 #include "stdint.h"
 #include "support.h" //fake printf()
-#else /* Linux - SOEM Includes */
+#else /* SOEM Includes */
 #include <stdint.h>
 #include <stdio.h>
 #endif

@@ -6,7 +6,7 @@
  * written by: Jonathan Clapson (5 FEB 2014)
  */
 
-#ifdef TC_VER /* If a twincat 3 version is defined */
+#ifdef _MSC_VER /* If a twincat 3 version is defined */
 #pragma once
 #endif
 
@@ -27,20 +27,21 @@ enum {
 	WAGO_LENGTH_SPACE
 };
 
-#ifndef TC_VER /* If a twincat 3 version is defined */
+/* io structures */
+#ifdef TC_VER /* If a twincat 3 version is defined */
+#include "stdint.h"
+#else 
+#include <stdint.h>
 #include <pthread.h>
 extern pthread_mutex_t io_mutex;
 #endif
 
-/* io structures */
-#ifdef TC_VER /* If a twincat 3 version is defined */
-#include "stdint.h"
+#ifdef _MSC_VER
 __pragma( pack(push, 1) )
 struct wago_stepper_t {
 #else
-#include <stdint.h>
 struct __attribute__((__packed__)) wago_stepper_t {
-#endif /*TC_VER */
+#endif /* _MSC_VER */
 
 	union {
 		uint8_t value;
@@ -52,9 +53,9 @@ struct __attribute__((__packed__)) wago_stepper_t {
 		} bit;
 	} stat_cont0;
 
-#ifndef _WIN32
+#ifndef TC_VER
 	uint8_t reserved;
-#endif /* _WIN32 */
+#endif /* TC_VER */
 
 	union {
 		struct {
@@ -107,9 +108,9 @@ struct __attribute__((__packed__)) wago_stepper_t {
 		} bit;
 	} stat_cont1;	
 };
-#ifdef TC_VER /* If a twincat 3 version is defined */
+#ifdef _MSC_VER /* If a twincat 3 version is defined */
 __pragma( pack(pop) )
-#endif /* TC_VER */ 
+#endif /* _MSC_VER */ 
 
 int wago_terminate_mode(struct wago_stepper_t *wago_steppers[WAGO_NUM_STEPPERS][WAGO_LENGTH_SPACE], int device);
 int wago_confirm_terminate_mode(struct wago_stepper_t *wago_steppers[WAGO_NUM_STEPPERS][WAGO_LENGTH_SPACE], int device);
